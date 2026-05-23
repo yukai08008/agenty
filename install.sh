@@ -66,7 +66,8 @@ install_agenty() {
 
   # Verify
   if command -v "$BIN_NAME" &>/dev/null; then
-    info "Successfully installed! Version: $(${BIN_NAME} --version 2>&1 || echo 'unknown')"
+    VER=$("$BIN_NAME" --version 2>/dev/null | head -1 | awk '{print $2}' || echo 'unknown')
+    info "Successfully installed! Version: ${VER}"
     info "Run '${BIN_NAME} --help' to get started."
   else
     # uv tool install puts binaries in ~/.local/bin, ensure it's in PATH

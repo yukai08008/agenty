@@ -33,8 +33,12 @@ def cmd_hello(args):
     ))
 
 
-def cmd_version(_args):
+def cmd_version(args):
     """Show version info."""
+    # Plain text for non-terminal (pipes, scripts)
+    if not sys.stdout.isatty():
+        print(f"agenty {__version__}")
+        return
     table = Table(show_header=False, border_style="blue")
     table.add_column("Key", style="bold cyan")
     table.add_column("Value")
@@ -89,17 +93,19 @@ def cmd_upgrade(_args):
     )
 
     if result.returncode == 0:
-        # Get new version by re-importing after upgrade
+        # Get new version via --version (plain text when piped)
         new_version = __version__
         try:
             new_result = subprocess.run(
-                ["python3", "-c",
-                 "import importlib.metadata; print(importlib.metadata.version('agenty'))"],
+                ["agenty", "--version"],
                 capture_output=True,
                 text=True,
             )
             if new_result.returncode == 0 and new_result.stdout.strip():
-                new_version = new_result.stdout.strip()
+                # Output: "agenty 0.2.0"
+                parts = new_result.stdout.strip().split()
+                if len(parts) >= 2:
+                    new_version = parts[1]
         except Exception:
             pass
 
