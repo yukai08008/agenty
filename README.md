@@ -1,5 +1,7 @@
 # agenty
 
+[中文文档](README_zh.md)
+
 A demo agent CLI built with uv — showcasing how to create a Python CLI tool that installs on both Linux and macOS with a single command.
 
 ## One-line Install
