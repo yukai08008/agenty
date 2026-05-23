@@ -71,6 +71,59 @@ def cmd_run(args):
         console.print(Panel(table, title="Agent Status", border_style="green"))
 
 
+def cmd_upgrade(_args):
+    """Upgrade agenty to the latest version."""
+    import subprocess
+
+    console.print(Panel(
+        f"Current version: [bold cyan]{__version__}[/bold cyan]\n"
+        "Upgrading...",
+        title="agenty upgrade",
+        border_style="yellow",
+    ))
+
+    result = subprocess.run(
+        ["uv", "tool", "upgrade", "agenty"],
+        capture_output=True,
+        text=True,
+    )
+
+    if result.returncode == 0:
+        # Get new version by re-importing after upgrade
+        new_version = __version__
+        try:
+            new_result = subprocess.run(
+                ["python3", "-c",
+                 "import importlib.metadata; print(importlib.metadata.version('agenty'))"],
+                capture_output=True,
+                text=True,
+            )
+            if new_result.returncode == 0 and new_result.stdout.strip():
+                new_version = new_result.stdout.strip()
+        except Exception:
+            pass
+
+        if new_version != __version__:
+            console.print(Panel(
+                f"Upgraded: [bold red]{__version__}[/bold red] → [bold green]{new_version}[/bold green]",
+                title="Upgrade Complete",
+                border_style="green",
+            ))
+        else:
+            console.print(Panel(
+                f"Already on the latest version: [bold green]{__version__}[/bold green]",
+                title="Upgrade Complete",
+                border_style="green",
+            ))
+    else:
+        console.print(Panel(
+            f"Upgrade failed:\n{result.stderr.strip() or result.stdout.strip()}",
+            title="Upgrade Failed",
+            border_style="red",
+        ))
+        raise SystemExit(1)
+
+
 def cmd_chat(_args):
     """Start an interactive chat session."""
     console.print(BANNER, style="bold blue")
@@ -139,6 +192,9 @@ def main():
     # chat
     sub.add_parser("chat", help="Start an interactive chat session")
 
+    # upgrade
+    sub.add_parser("upgrade", help="Upgrade agenty to the latest version")
+
     args = parser.parse_args()
 
     if args.version:
@@ -149,6 +205,8 @@ def main():
         cmd_run(args)
     elif args.command == "chat":
         cmd_chat(args)
+    elif args.command == "upgrade":
+        cmd_upgrade(args)
     else:
         parser.print_help()
 
