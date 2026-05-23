@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.text import Text
 
 from agenty import __version__
+from agenty.config import ensure_config, get_api_key, CONFIG_FILE
 
 console = Console()
 
@@ -130,6 +131,30 @@ def cmd_upgrade(_args):
         raise SystemExit(1)
 
 
+def cmd_config(_args):
+    """Show or initialize config."""
+    path = ensure_config()
+    if path:
+        console.print(Panel(
+            f"Config file created at: [bold cyan]{path}[/bold cyan]\n\n"
+            "Edit it to add your API key:\n"
+            f"  [bold]{path}[/bold]\n\n"
+            "Or set environment variable:\n"
+            "  [bold]export AGENT_API_KEY=your_key[/bold]",
+            title="agenty config",
+            border_style="blue",
+        ))
+    else:
+        console.print(Panel(
+            f"Config file: [bold cyan]{CONFIG_FILE}[/bold cyan]\n\n"
+            f"API key: {'[bold green]set[/bold green]' if get_api_key() else '[bold red]not set[/bold red]'}\n\n"
+            "Edit config:\n"
+            f"  [bold]{CONFIG_FILE}[/bold]",
+            title="agenty config",
+            border_style="blue",
+        ))
+
+
 def cmd_chat(_args):
     """Start an interactive chat session."""
     console.print(BANNER, style="bold blue")
@@ -201,6 +226,9 @@ def main():
     # upgrade
     sub.add_parser("upgrade", help="Upgrade agenty to the latest version")
 
+    # config
+    sub.add_parser("config", help="Show or initialize configuration")
+
     args = parser.parse_args()
 
     if args.version:
@@ -213,6 +241,8 @@ def main():
         cmd_chat(args)
     elif args.command == "upgrade":
         cmd_upgrade(args)
+    elif args.command == "config":
+        cmd_config(args)
     else:
         parser.print_help()
 
