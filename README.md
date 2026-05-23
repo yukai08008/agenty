@@ -38,6 +38,9 @@ agenty run greet     # say hi
 agenty run think     # deep thoughts
 agenty run status    # system status
 
+# Start interactive chat
+agenty chat
+
 # Show help
 agenty --help
 ```
