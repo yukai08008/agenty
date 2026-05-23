@@ -1,0 +1,14 @@
+[project]
+name = "agenty"
+version = "0.1.0"
+description = "A demo agent CLI built with uv"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+agenty = "agenty.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
