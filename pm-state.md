@@ -1,14 +1,14 @@
 # 项目状态: Agenty
 
-> 最近更新: 2026-09-01 00:00 | 更新者: Codex PM
+> 最近更新: 2026-09-01 | 更新者: Codex PM
 
 ## 状态树
 
 ### v1.01 (ACTIVE) — 当前 API 版本
 
-- **v1.01-a control-plane-state** (DEVELOPING)：多 Agent 注册、runtime 配置、状态快照、事件与 checkpoint
-- **v1.01-b workspace-suite** (FORKED)：Worker 工作空间、agent suite 与基础项目快照场景
-- **v1.01-c cli-migration** (FORKED)：第一批 CLI、安全迁移、Git 初始化与端到端验收
+- **v1.01-a control-plane-state** (MERGED)：多 Agent 注册、runtime 配置、状态快照、事件与 checkpoint
+- **v1.01-b workspace-suite** (MERGED)：Worker 工作空间、agent suite 与基础项目快照场景
+- **v1.01-c cli-migration** (MERGED)：第一批 CLI、安全迁移、Git 初始化与端到端验收
 
 ### legacy 0.1.0 (ARCHIVED)
 
@@ -16,14 +16,14 @@
 
 ## 当前焦点
 
-- 完成 v1.01-a：建立 `~/.agenty` 多 Agent 控制面和可恢复状态机
+- v1.01 POC 已通过验收，等待使用反馈；下一步将结果收敛为 v1.02 正式版计划
 
 ## 待办
 
-- [ ] 完成 v1.01-a 并通过状态机测试
-- [ ] 推进 v1.01-b 的 suite 基础场景
-- [ ] 推进 v1.01-c 的 CLI 与迁移闭环
-- [ ] 写入 `TEST_CASES_FINAL.md`
+- [x] 完成 v1.01-a 并通过状态机测试
+- [x] 推进 v1.01-b 的 suite 基础场景
+- [x] 推进 v1.01-c 的 CLI 与迁移闭环
+- [x] 写入 `TEST_CASES_FINAL.md`
 - [ ] 将 v1.01 结果作为 v1.02 Web/正式发布版的 API 基线
 
 ## 版本说明
