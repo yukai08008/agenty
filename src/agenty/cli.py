@@ -1,250 +1,350 @@
-"""Agenty CLI entry point."""
+"""Agenty command-line interface."""
 
-import platform
-import sys
+from __future__ import annotations
 
-import questionary
+import argparse
+import uuid
+from pathlib import Path
+
 from rich.console import Console
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from agenty import __version__
-from agenty.config import ensure_config, get_api_key, CONFIG_FILE
+from agenty.runtime import launch_agent
+from agenty.state import AgentStateMachine
+from agenty.store import AgentyError, AgentyStore
+from agenty.suite import create_project_snapshot, inspect_suite
+from agenty.workspace import create_worker, migrate_worker
+
 
 console = Console()
 
-BANNER = """
-  ___              _
- / _ \\ _ __   ___ | |_
-| |_| | '_ \\ / _ \\| __|
-|  _  | | | | (_) | |_
-|_| |_|_| |_|\\___/ \\__|
-"""
+
+def make_store(args: argparse.Namespace) -> AgentyStore:
+    return AgentyStore(home=args.home, agents_home=args.agents_home)
 
 
-def cmd_hello(args):
-    """Say hello from agenty."""
-    name = args.name or "World"
-    console.print(Panel(
-        f"Hello, [bold green]{name}[/bold green]! Agenty is running.",
-        title="agenty",
-        border_style="blue",
-    ))
-
-
-def cmd_version(args):
-    """Show version info."""
-    # Plain text for non-terminal (pipes, scripts)
-    if not sys.stdout.isatty():
-        print(f"agenty {__version__}")
-        return
-    table = Table(show_header=False, border_style="blue")
-    table.add_column("Key", style="bold cyan")
-    table.add_column("Value")
-    table.add_row("Version", __version__)
-    table.add_row("Python", sys.version.split()[0])
-    table.add_row("OS", f"{platform.system()} {platform.release()}")
-    table.add_row("Arch", platform.machine())
-    console.print(Panel(table, title="agenty", border_style="blue"))
-
-
-def cmd_run(args):
-    """Run a demo agent task."""
-    task = args.task or "greet"
-    if task == "greet":
-        console.print(Panel(
-            "Hi! I'm [bold]agenty[/bold], your demo agent.\n"
-            "Use [cyan]agenty chat[/cyan] to start an interactive session.",
-            title="Agent",
+def cmd_init(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    detected = store.initialize()
+    names = ", ".join(profile["name"] for profile in detected) or "none"
+    console.print(
+        Panel(
+            f"Control plane: [cyan]{store.home}[/cyan]\n"
+            f"Default Worker root: [cyan]{store.agents_home}[/cyan]\n"
+            f"Detected runtimes: {names}",
+            title="Agenty initialized",
             border_style="green",
-        ))
-    elif task == "think":
-        console.print(Panel(
-            "Thinking... Done! The answer is [bold yellow]42[/bold yellow].",
-            title="Agent",
-            border_style="green",
-        ))
-    elif task == "status":
-        table = Table(show_header=False, border_style="green")
-        table.add_column("Key", style="bold")
-        table.add_column("Value")
-        table.add_row("Platform", platform.system())
-        table.add_row("Status", "[bold green]Operational[/bold green]")
-        table.add_row("Uptime", "Since last install")
-        console.print(Panel(table, title="Agent Status", border_style="green"))
-
-
-def cmd_upgrade(_args):
-    """Upgrade agenty to the latest version."""
-    import subprocess
-
-    console.print(Panel(
-        f"Current version: [bold cyan]{__version__}[/bold cyan]\n"
-        "Upgrading...",
-        title="agenty upgrade",
-        border_style="yellow",
-    ))
-
-    result = subprocess.run(
-        ["uv", "tool", "upgrade", "agenty"],
-        capture_output=True,
-        text=True,
+        )
     )
 
-    if result.returncode == 0:
-        # Get new version via --version (plain text when piped)
-        new_version = __version__
-        try:
-            new_result = subprocess.run(
-                ["agenty", "--version"],
-                capture_output=True,
-                text=True,
-            )
-            if new_result.returncode == 0 and new_result.stdout.strip():
-                # Output: "agenty 0.2.0"
-                parts = new_result.stdout.strip().split()
-                if len(parts) >= 2:
-                    new_version = parts[1]
-        except Exception:
-            pass
 
-        if new_version != __version__:
-            console.print(Panel(
-                f"Upgraded: [bold red]{__version__}[/bold red] → [bold green]{new_version}[/bold green]",
-                title="Upgrade Complete",
-                border_style="green",
-            ))
-        else:
-            console.print(Panel(
-                f"Already on the latest version: [bold green]{__version__}[/bold green]",
-                title="Upgrade Complete",
-                border_style="green",
-            ))
-    else:
-        console.print(Panel(
-            f"Upgrade failed:\n{result.stderr.strip() or result.stdout.strip()}",
-            title="Upgrade Failed",
-            border_style="red",
-        ))
-        raise SystemExit(1)
+def cmd_runtime_list(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    table = Table("Name", "Command")
+    for profile in store.list_runtimes():
+        table.add_row(profile["name"], " ".join(profile["argv"]))
+    console.print(table)
 
 
-def cmd_config(_args):
-    """Show or initialize config."""
-    path = ensure_config()
-    if path:
-        console.print(Panel(
-            f"Config file created at: [bold cyan]{path}[/bold cyan]\n\n"
-            "Edit it to add your API key:\n"
-            f"  [bold]{path}[/bold]\n\n"
-            "Or set environment variable:\n"
-            "  [bold]export AGENT_API_KEY=your_key[/bold]",
-            title="agenty config",
-            border_style="blue",
-        ))
-    else:
-        console.print(Panel(
-            f"Config file: [bold cyan]{CONFIG_FILE}[/bold cyan]\n\n"
-            f"API key: {'[bold green]set[/bold green]' if get_api_key() else '[bold red]not set[/bold red]'}\n\n"
-            "Edit config:\n"
-            f"  [bold]{CONFIG_FILE}[/bold]",
-            title="agenty config",
-            border_style="blue",
-        ))
-
-
-def cmd_chat(_args):
-    """Start an interactive chat session."""
-    console.print(BANNER, style="bold blue")
-    console.print(Panel(
-        "Welcome to [bold]agenty[/bold] chat!\n"
-        "Type your message and press Enter. Type [bold red]quit[/bold red] to exit.",
-        border_style="blue",
-    ))
-
-    while True:
-        try:
-            user_input = questionary.text("You>").ask()
-        except (KeyboardInterrupt, EOFError):
-            break
-
-        if not user_input or user_input.strip().lower() in ("quit", "exit", "q"):
-            console.print(Panel("Goodbye!", border_style="blue"))
-            break
-
-        # Simple demo responses
-        text = user_input.strip().lower()
-        if "hello" in text or "hi" in text:
-            reply = "Hey there! How can I help you?"
-        elif "name" in text:
-            reply = "I'm **agenty**, a demo agent CLI built with uv."
-        elif "help" in text:
-            reply = (
-                "I can respond to a few things:\n"
-                "- Say **hello** and I'll greet you\n"
-                "- Ask my **name** and I'll tell you\n"
-                "- Ask for **status** and I'll check systems\n"
-                "- Type **quit** to exit"
-            )
-        elif "status" in text:
-            reply = f"All systems operational on **{platform.system()}**."
-        else:
-            reply = f"I heard you say: _{user_input.strip()}_\nI'm a demo agent, so my responses are limited. Try asking for **help**!"
-
-        console.print(Panel(
-            Markdown(reply),
-            title="Agent",
+def cmd_runtime_add(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    argv = list(args.argv)
+    if argv[:1] == ["--"]:
+        argv = argv[1:]
+    profile = store.add_runtime(args.name, argv, overwrite=args.force)
+    console.print(
+        Panel(
+            f"{profile['name']}: {' '.join(profile['argv'])}",
+            title="Runtime saved",
             border_style="green",
-        ))
+        )
+    )
 
 
-def main():
-    import argparse
+def cmd_claim(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = store.claim(args.name, args.runtime)
+    console.print(
+        Panel(
+            f"Agent ID: [cyan]{agent.agent_id}[/cyan]\n"
+            f"Name: {agent.name}\nRuntime: {agent.runtime}\nPhase: CLAIMED",
+            title="Agent claimed",
+            border_style="green",
+        )
+    )
 
+
+def cmd_list(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    store.require_initialized()
+    table = Table("Agent ID", "Name", "Phase", "Execution", "Runtime", "Root")
+    for agent in store.list_agents():
+        state = AgentStateMachine(agent.directory).load()
+        table.add_row(
+            agent.agent_id,
+            agent.name,
+            state["lifecycle"]["phase"],
+            state["execution"]["status"],
+            agent.runtime,
+            str(agent.bindings.get("active_root") or "-"),
+        )
+    console.print(table)
+
+
+def cmd_show(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = store.resolve_agent(args.agent)
+    state = AgentStateMachine(agent.directory).load()
+    table = Table(show_header=False)
+    rows = (
+        ("Agent ID", agent.agent_id),
+        ("Name", agent.name),
+        ("Runtime", agent.runtime),
+        ("Lifecycle", state["lifecycle"]["phase"]),
+        ("Execution", state["execution"]["status"]),
+        ("Task", state["task"]["status"]),
+        ("Revision", str(state["revision"])),
+        ("Root", str(agent.bindings.get("active_root") or "-")),
+        ("Checkpoint", str(state["recovery"].get("last_checkpoint") or "-")),
+    )
+    for key, value in rows:
+        table.add_row(key, value)
+    console.print(Panel(table, title=agent.name, border_style="blue"))
+
+
+def cmd_workspace_create(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = create_worker(store, args.agent, args.path)
+    console.print(
+        Panel(
+            f"Agent: {agent.name} ({agent.agent_id})\n"
+            f"Worker root: [cyan]{agent.bindings['active_root']}[/cyan]",
+            title="Worker created",
+            border_style="green",
+        )
+    )
+
+
+def cmd_snapshot(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = store.resolve_agent(args.agent)
+    root = agent.bindings.get("active_root")
+    if not isinstance(root, str):
+        raise AgentyError("Agent has no Worker or Project workspace.")
+    machine = AgentStateMachine(agent.directory)
+    task_id = f"task_snapshot_{uuid.uuid4().hex}"
+    machine.start_task("Create a project snapshot", task_id=task_id)
+    try:
+        snapshot = create_project_snapshot(root)
+        checkpoint_id, _ = machine.checkpoint(
+            {
+                "snapshot_id": snapshot["snapshot_id"],
+                "pending_action": None,
+            },
+            summary="Project snapshot completed",
+        )
+        machine.finish_task("COMPLETED")
+    except Exception:
+        machine.finish_task("FAILED")
+        raise
+    console.print(
+        Panel(
+            f"Snapshot: {snapshot['snapshot_id']}\n"
+            f"Files: {snapshot['file_count']}\n"
+            f"Git: {snapshot['git']['is_work_tree']}\n"
+            f"Checkpoint: {checkpoint_id}",
+            title="Project snapshot",
+            border_style="green",
+        )
+    )
+
+
+def cmd_checkpoint(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = store.resolve_agent(args.agent)
+    payload = {"pending_action": args.pending_action}
+    checkpoint_id, state = AgentStateMachine(agent.directory).checkpoint(
+        payload, summary=args.summary
+    )
+    console.print(
+        Panel(
+            f"Checkpoint: [cyan]{checkpoint_id}[/cyan]\nRevision: {state['revision']}",
+            title="Agent checkpoint",
+            border_style="green",
+        )
+    )
+
+
+def cmd_history(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = store.resolve_agent(args.agent)
+    events = AgentStateMachine(agent.directory).history(args.tail)
+    table = Table("Revision", "Time", "Event", "Transition")
+    for event in events:
+        table.add_row(
+            str(event.get("revision")),
+            str(event.get("timestamp")),
+            str(event.get("event")),
+            f"{event.get('from')} → {event.get('to')}",
+        )
+    console.print(table)
+
+
+def cmd_start(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    runtime_args = list(args.runtime_args)
+    if runtime_args[:1] == ["--"]:
+        runtime_args = runtime_args[1:]
+    result = launch_agent(store, args.agent, runtime_args, dry_run=args.dry_run)
+    if args.dry_run:
+        console.print(
+            Panel(
+                f"Command: {' '.join(result['argv'])}\nCWD: {result['cwd']}",
+                title="Runtime dry run",
+                border_style="yellow",
+            )
+        )
+    elif result["return_code"] != 0:
+        raise SystemExit(int(result["return_code"]))
+
+
+def cmd_migrate(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    agent = migrate_worker(store, args.agent, args.target, init_git=args.init_git)
+    console.print(
+        Panel(
+            f"Agent: {agent.name} ({agent.agent_id})\n"
+            f"Project: [cyan]{agent.bindings['project']}[/cyan]\n"
+            f"Retained source: {agent.bindings['retained_source']}",
+            title="Agent migrated",
+            border_style="green",
+        )
+    )
+
+
+def cmd_doctor(args: argparse.Namespace) -> None:
+    store = make_store(args)
+    errors: list[str] = []
+    if not store.initialized:
+        errors.append(f"Control plane is not initialized: {store.home}")
+    elif args.agent:
+        agent = store.resolve_agent(args.agent)
+        state = AgentStateMachine(agent.directory).load()
+        root = agent.bindings.get("active_root")
+        if state["lifecycle"]["phase"] in {"WORKER", "PROJECT"}:
+            if not isinstance(root, str):
+                errors.append("Active Agent has no workspace binding")
+            else:
+                inspection = inspect_suite(root)
+                errors.extend(inspection.errors)
+                if inspection.agent_id and inspection.agent_id != agent.agent_id:
+                    errors.append("Suite agent_id does not match control-plane identity")
+        if state["execution"]["runtime_pid"] is not None:
+            errors.append("Runtime PID is recorded; live-process verification is not implemented")
+
+    if errors:
+        console.print(
+            Panel(
+                "\n".join(f"- {error}" for error in errors),
+                title="Doctor failed",
+                border_style="red",
+            )
+        )
+        raise SystemExit(1)
+    console.print(Panel("All checked invariants passed.", title="Doctor", border_style="green"))
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agenty",
-        description="A demo agent CLI built with uv",
+        description="Manage multiple external Agents across claimed, Worker, and Project phases.",
     )
     parser.add_argument("--version", action="store_true", help="Show version")
+    parser.add_argument("--home", type=Path, help="Override AGENTY_HOME")
+    parser.add_argument("--agents-home", type=Path, help="Override AGENTY_AGENTS_HOME")
     sub = parser.add_subparsers(dest="command")
 
-    # hello
-    p_hello = sub.add_parser("hello", help="Say hello")
-    p_hello.add_argument("name", nargs="?", help="Your name")
+    init_parser = sub.add_parser("init", help="Initialize the shared Agenty control plane")
+    init_parser.set_defaults(func=cmd_init)
 
-    # run
-    p_run = sub.add_parser("run", help="Run a demo agent task")
-    p_run.add_argument("task", nargs="?", default="greet",
-                       choices=["greet", "think", "status"],
-                       help="Task to run (default: greet)")
+    runtime_parser = sub.add_parser("runtime", help="Manage external runtime profiles")
+    runtime_sub = runtime_parser.add_subparsers(dest="runtime_command", required=True)
+    runtime_list = runtime_sub.add_parser("list", help="List runtime profiles")
+    runtime_list.set_defaults(func=cmd_runtime_list)
+    runtime_add = runtime_sub.add_parser("add", help="Add or replace a runtime profile")
+    runtime_add.add_argument("--force", action="store_true")
+    runtime_add.add_argument("name")
+    runtime_add.add_argument("argv", nargs=argparse.REMAINDER)
+    runtime_add.set_defaults(func=cmd_runtime_add)
 
-    # chat
-    sub.add_parser("chat", help="Start an interactive chat session")
+    claim = sub.add_parser("claim", help="Register an existing Agent")
+    claim.add_argument("name")
+    claim.add_argument("--runtime", required=True)
+    claim.set_defaults(func=cmd_claim)
 
-    # upgrade
-    sub.add_parser("upgrade", help="Upgrade agenty to the latest version")
+    list_parser = sub.add_parser("list", help="List managed Agents")
+    list_parser.set_defaults(func=cmd_list)
 
-    # config
-    sub.add_parser("config", help="Show or initialize configuration")
+    show = sub.add_parser("show", help="Show one Agent and its current state")
+    show.add_argument("agent")
+    show.set_defaults(func=cmd_show)
 
+    workspace = sub.add_parser("workspace", help="Manage Worker workspaces")
+    workspace_sub = workspace.add_subparsers(dest="workspace_command", required=True)
+    workspace_create = workspace_sub.add_parser("create", help="Create a Worker workspace")
+    workspace_create.add_argument("agent")
+    workspace_create.add_argument("--path", type=Path)
+    workspace_create.set_defaults(func=cmd_workspace_create)
+
+    snapshot = sub.add_parser("snapshot", help="Run the built-in project snapshot scenario")
+    snapshot.add_argument("agent")
+    snapshot.set_defaults(func=cmd_snapshot)
+
+    checkpoint = sub.add_parser("checkpoint", help="Persist an Agent recovery checkpoint")
+    checkpoint.add_argument("agent")
+    checkpoint.add_argument("--summary")
+    checkpoint.add_argument("--pending-action")
+    checkpoint.set_defaults(func=cmd_checkpoint)
+
+    history = sub.add_parser("history", help="Show Agent state transition history")
+    history.add_argument("agent")
+    history.add_argument("--tail", type=int, default=20)
+    history.set_defaults(func=cmd_history)
+
+    start = sub.add_parser("start", help="Start an Agent's configured external runtime")
+    start.add_argument("agent")
+    start.add_argument("--dry-run", action="store_true")
+    start.add_argument("runtime_args", nargs=argparse.REMAINDER)
+    start.set_defaults(func=cmd_start)
+
+    migrate = sub.add_parser("migrate", help="Migrate a Worker into a Project root")
+    migrate.add_argument("agent")
+    migrate.add_argument("target", type=Path)
+    migrate.add_argument("--init-git", action="store_true")
+    migrate.set_defaults(func=cmd_migrate)
+
+    doctor = sub.add_parser("doctor", help="Validate the control plane or one Agent")
+    doctor.add_argument("agent", nargs="?")
+    doctor.set_defaults(func=cmd_doctor)
+    return parser
+
+
+def main() -> None:
+    parser = build_parser()
     args = parser.parse_args()
-
     if args.version:
-        cmd_version(args)
-    elif args.command == "hello":
-        cmd_hello(args)
-    elif args.command == "run":
-        cmd_run(args)
-    elif args.command == "chat":
-        cmd_chat(args)
-    elif args.command == "upgrade":
-        cmd_upgrade(args)
-    elif args.command == "config":
-        cmd_config(args)
-    else:
+        print(f"agenty {__version__}")
+        return
+    if not hasattr(args, "func"):
         parser.print_help()
+        return
+    try:
+        args.func(args)
+    except AgentyError as exc:
+        console.print(Panel(str(exc), title="Agenty error", border_style="red"))
+        raise SystemExit(1) from exc
 
 
 if __name__ == "__main__":
