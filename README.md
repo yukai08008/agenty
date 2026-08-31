@@ -1,85 +1,110 @@
-# agenty
+# Agenty
 
 [中文文档](README_zh.md)
 
-A demo agent CLI built with uv — showcasing how to create a Python CLI tool that installs on both Linux and macOS with a single command.
+Agenty manages the lifecycle and recoverable state of multiple external Agents. It relies on runtimes such as Codex, OpenCode, and Claude for reasoning and execution.
 
-## One-line Install
+The v1.01 POC covers three phases:
+
+```text
+CLAIMED → WORKER → MIGRATING → PROJECT
+```
+
+- `CLAIMED`: an existing Agent is registered in the shared `~/.agenty` control plane.
+- `WORKER`: the Agent owns a general workspace, by default under `~/agents/<name>`.
+- `PROJECT`: the same Agent identity and suite have been migrated into a Git project.
+
+## Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash
 ```
 
-## Uninstall
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash -s -- uninstall
-```
-
-## Install with uv directly
-
-If you already have [uv](https://docs.astral.sh/uv/):
+Or install directly with uv:
 
 ```bash
 uv tool install git+https://github.com/yukai08008/agenty.git
 ```
 
-## Usage
+## Quick start
 
 ```bash
-# Show version and system info
-agenty --version
+# Initialize the shared multi-Agent control plane
+agenty init
 
-# Say hello
-agenty hello
-agenty hello Alice
+# Inspect detected runtimes; add one explicitly when needed
+agenty runtime list
+agenty runtime add local-codex -- /absolute/path/to/codex
 
-# Run demo agent tasks
-agenty run           # default: greet
-agenty run greet     # say hi
-agenty run think     # deep thoughts
-agenty run status    # system status
+# Register two existing Agents
+agenty claim research-worker --runtime local-codex
+agenty claim maintenance-worker --runtime local-codex
+agenty list
 
-# Start interactive chat
-agenty chat
+# Create a general Worker and exercise its complete agent suite
+agenty workspace create research-worker
+agenty snapshot research-worker
+agenty checkpoint research-worker --summary "ready for project migration"
 
-# Show help
-agenty --help
+# Preview runtime startup
+agenty start research-worker --dry-run
+
+# Promote the Worker into a Git project without deleting its source workspace
+agenty migrate research-worker ~/mycode/research-project --init-git
+agenty doctor research-worker
 ```
 
-## How It Works
+## Storage boundaries
 
-The install script (`install.sh`) does three things:
+Agenty's shared control plane contains small, per-Agent operational state:
 
-1. **Installs uv** (if not present) — a fast Python package manager
-2. **Ensures `~/.local/bin` is in PATH** — the standard user-level bin directory
-3. **Installs agenty via `uv tool install`** — isolated environment, no dependency conflicts
-
-Since Python source code is cross-platform and uv handles virtual environments automatically, the same script works identically on Linux and macOS with zero platform-specific logic.
-
-## Project Structure
-
+```text
+~/.agenty/
+├── agents/<agent-id>/
+│   ├── metadata.json
+│   ├── bindings.json
+│   ├── state/current.json
+│   ├── state/events.jsonl
+│   ├── state/checkpoints/
+│   ├── runtime/
+│   └── logs/
+├── runtimes/
+├── locks/
+└── logs/
 ```
-agenty/
-├── install.sh          # One-line install script
-├── pyproject.toml      # Project config + CLI entry point
-├── README.md
-└── src/
-    └── agenty/
-        ├── __init__.py  # Version
-        └── cli.py       # CLI commands
+
+The Agent's identity, knowledge, capabilities, sessions, and semantic history live with its Worker or project:
+
+```text
+<agent-root>/
+├── AGENTS.md -> agent-suite/AGENTS.md
+├── agent-suite/
+│   ├── AGENTS.md
+│   ├── MEMORY.json
+│   ├── agent_log.jsonl
+│   ├── skills/
+│   ├── memory/
+│   └── sessions/
+└── workspace/
 ```
+
+Use `AGENTY_HOME` and `AGENTY_AGENTS_HOME` to override the defaults. Tests always use isolated temporary values and never touch the real user control plane.
+
+## State recovery
+
+Each Agent has independent lifecycle, execution, and task state. Every update acquires an Agent-level file lock, increments a revision, appends a full-state JSONL event, and atomically replaces the current snapshot. If the process stops after the event append, Agenty reconstructs `current.json` from the event log.
 
 ## Development
 
 ```bash
-# Clone
-git clone https://github.com/yukai08008/agenty.git
-cd agenty
+uv run python -m unittest discover -s tests -v
+uv build
+```
 
-# Run directly with uv (no install needed)
-uvx --from . agenty --version
+The current project state is in `pm-state.md`. The v1.01 PRD, task card, and tests are under `dev_plans/legacy-v1.01/`.
 
-# Or install locally
-uv tool install --force .
+## Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash -s -- uninstall
 ```

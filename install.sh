@@ -24,13 +24,9 @@ ensure_uv() {
   info "uv not found, installing..."
   curl -fsSL https://astral.sh/uv/install.sh | sh
 
-  # Source the shell profile so uv is available in this session
-  for profile in "${HOME}/.bashrc" "${HOME}/.zshrc" "${HOME}/.profile"; do
-    if [ -f "$profile" ]; then
-      # shellcheck disable=SC1090
-      source "$profile" 2>/dev/null || true
-    fi
-  done
+  # The official installer uses this directory by default. Avoid sourcing
+  # arbitrary interactive shell configuration inside an install pipeline.
+  export PATH="${INSTALL_DIR}:${PATH}"
 
   command -v uv &>/dev/null || error "uv installation failed. Please install uv manually: https://docs.astral.sh/uv/"
 }
@@ -45,13 +41,17 @@ ensure_path() {
 
   # Detect shell config file
   local rc_file=""
-  if [ -n "${ZSH_VERSION:-}" ]; then
+  case "$(basename "${SHELL:-}")" in
+    zsh)
     rc_file="${HOME}/.zshrc"
-  elif [ -n "${BASH_VERSION:-}" ]; then
+      ;;
+    bash)
     rc_file="${HOME}/.bashrc"
-  else
-    rc_file="${HOME}/.profile"
-  fi
+      ;;
+    *)
+      rc_file="${HOME}/.profile"
+      ;;
+  esac
 
   warn "$INSTALL_DIR is not in PATH, adding to $rc_file"
   echo '' >> "$rc_file"
@@ -97,7 +97,7 @@ main() {
   echo "|  _  | | | | (_) | |_ "
   echo "|_| |_|_| |_|\\___/ \\__|"
   echo ""
-  echo "  A demo agent CLI built with uv"
+  echo "  Multi-Agent lifecycle and state management"
   echo ""
 
   if [ "${1:-}" = "uninstall" ]; then

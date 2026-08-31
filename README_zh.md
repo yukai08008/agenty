@@ -1,89 +1,110 @@
-# agenty
+# Agenty
 
 [English](README.md)
 
-基于 uv 构建的 demo agent CLI —— 演示如何创建一个 Linux 和 macOS 上一行命令安装的 Python CLI 工具。
+Agenty 用于管理 N 个外部 Agent 的生命周期和可恢复状态。推理与执行能力依托 Codex、OpenCode、Claude 等 runtime，Agenty 不重复实现模型 Agent。
 
-## 一键安装
+v1.01 POC 覆盖三个阶段：
+
+```text
+CLAIMED → WORKER → MIGRATING → PROJECT
+```
+
+- `CLAIMED`：将已经存在的 Agent 登记到共享的 `~/.agenty` 控制面。
+- `WORKER`：为 Agent 创建通用工作空间，默认位于 `~/agents/<name>`。
+- `PROJECT`：保持同一个 Agent ID 和 suite，将 Worker 安全迁移为 Git 项目 Agent。
+
+## 安装
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash
 ```
 
-## 卸载
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash -s -- uninstall
-```
-
-## 使用 uv 直接安装
-
-如果你已经安装了 [uv](https://docs.astral.sh/uv/)：
+或使用 uv：
 
 ```bash
 uv tool install git+https://github.com/yukai08008/agenty.git
 ```
 
-## 使用方法
+## 快速开始
 
 ```bash
-# 查看版本和系统信息
-agenty --version
+# 初始化共享的多 Agent 控制面
+agenty init
 
-# 打招呼
-agenty hello
-agenty hello Alice
+# 查看检测到的 runtime；也可以显式添加
+agenty runtime list
+agenty runtime add local-codex -- /absolute/path/to/codex
 
-# 运行 demo agent 任务
-agenty run           # 默认：问候
-agenty run greet     # 问候
-agenty run think     # 深度思考
-agenty run status    # 系统状态
+# 登记两个已经存在的 Agent
+agenty claim research-worker --runtime local-codex
+agenty claim maintenance-worker --runtime local-codex
+agenty list
 
-# 启动交互式聊天
-agenty chat
+# 创建通用 Worker，并实际使用完整 agent suite
+agenty workspace create research-worker
+agenty snapshot research-worker
+agenty checkpoint research-worker --summary "ready for project migration"
 
-# 升级到最新版本
-agenty upgrade
+# 预览 runtime 启动
+agenty start research-worker --dry-run
 
-# 查看帮助
-agenty --help
+# 迁移为 Git 项目；迁移后源 Worker 目录仍保留
+agenty migrate research-worker ~/mycode/research-project --init-git
+agenty doctor research-worker
 ```
 
-## 工作原理
+## 存储边界
 
-安装脚本（`install.sh`）做三件事：
+共享控制面只保存每个 Agent 的少量运行信息：
 
-1. **安装 uv**（如果尚未安装）—— 快速 Python 包管理器
-2. **确保 `~/.local/bin` 在 PATH 中** —— 标准的用户级 bin 目录
-3. **通过 `uv tool install` 安装 agenty** —— 隔离环境，无依赖冲突
-
-由于 Python 源码跨平台，uv 自动处理虚拟环境，同一份脚本在 Linux 和 macOS 上完全一致，无需任何平台特定逻辑。
-
-## 项目结构
-
+```text
+~/.agenty/
+├── agents/<agent-id>/
+│   ├── metadata.json
+│   ├── bindings.json
+│   ├── state/current.json
+│   ├── state/events.jsonl
+│   ├── state/checkpoints/
+│   ├── runtime/
+│   └── logs/
+├── runtimes/
+├── locks/
+└── logs/
 ```
-agenty/
-├── install.sh          # 一键安装脚本
-├── pyproject.toml      # 项目配置 + CLI 入口
-├── README.md           # 英文文档
-├── README_zh.md        # 中文文档
-└── src/
-    └── agenty/
-        ├── __init__.py  # 版本号
-        └── cli.py       # CLI 命令
+
+Agent 的身份引导、知识、技能、会话和语义操作记录位于 Worker 或项目中：
+
+```text
+<agent-root>/
+├── AGENTS.md -> agent-suite/AGENTS.md
+├── agent-suite/
+│   ├── AGENTS.md
+│   ├── MEMORY.json
+│   ├── agent_log.jsonl
+│   ├── skills/
+│   ├── memory/
+│   └── sessions/
+└── workspace/
 ```
+
+可使用 `AGENTY_HOME` 和 `AGENTY_AGENTS_HOME` 覆盖默认路径。测试始终使用临时隔离目录，不会触碰用户真实控制面。
+
+## 状态恢复
+
+每个 Agent 分别维护 lifecycle、execution 和 task 三条状态轴。每次更新都会获取 Agent 级文件锁、递增 revision、追加包含完整状态的 JSONL 事件，再原子替换当前快照。如果进程在事件写入后停止，Agenty 会从事件日志恢复 `current.json`。
 
 ## 开发
 
 ```bash
-# 克隆
-git clone https://github.com/yukai08008/agenty.git
-cd agenty
+uv run python -m unittest discover -s tests -v
+uv build
+```
 
-# 直接运行（无需安装）
-uvx --from . agenty --version
+当前状态见 `pm-state.md`，v1.01 的 PRD、任务卡和测试设计位于 `dev_plans/legacy-v1.01/`。
 
-# 或本地安装
-uv tool install --force .
+## 卸载
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yukai08008/agenty/main/install.sh | bash -s -- uninstall
 ```
