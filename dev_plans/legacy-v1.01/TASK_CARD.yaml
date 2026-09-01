@@ -1,0 +1,110 @@
+version: v1.01
+parent_final: null
+parent_legacy: main@9876fda
+title: 多 Agent 生命周期与可恢复状态机 POC
+type: api
+prd: dev_plans/legacy-v1.01/PRD.md
+test_cases: dev_plans/legacy-v1.01/TEST_CASES.md
+
+invariants:
+  - "~/.agenty 是多 Agent 控制面，不是默认 Agent suite"
+  - "agent suite 只位于 Worker 或 Git 项目"
+  - "Agent ID 跨 Worker→Project 迁移保持不变"
+  - "状态变化加锁、递增 revision、写事件并原子更新快照"
+  - "迁移不覆盖非空目录、不删除源目录"
+  - "运行时数据不在 git 追踪中"
+
+deliverables:
+  - module: src/agenty/store.py
+    change: 多 Agent home、身份、runtime profile、binding 持久化
+    public_api: [AgentyStore]
+  - module: src/agenty/state.py
+    change: 三轴状态机、事件、checkpoint、锁和恢复
+    public_api: [AgentStateMachine]
+  - module: src/agenty/suite.py
+    change: suite 创建、校验和项目快照基础场景
+    public_api: [create_suite, inspect_suite, create_project_snapshot]
+  - module: src/agenty/workspace.py
+    change: Worker 创建与安全项目迁移
+    public_api: [create_worker, migrate_worker]
+  - module: src/agenty/cli.py
+    change: 第一批多 Agent CLI
+    public_api: [main]
+
+feature_branches:
+  - name: v1.01-a
+    title: 多 Agent 控制面与状态机
+    deps: []
+    reads: [locate:control-plane]
+    files: [src/agenty/store.py, src/agenty/state.py, tests/test_store.py, tests/test_state.py]
+    acceptance:
+      - "a-1 多 Agent 身份和目录隔离"
+      - "a-2 合法/非法状态转移"
+      - "a-3 event-first 快照恢复"
+      - "a-4 checkpoint 与并发 revision"
+    estimated_loc: ~650
+  - name: v1.01-b
+    title: Worker、suite 与项目快照
+    deps: [v1.01-a]
+    reads: [locate:agent-suite]
+    files: [src/agenty/suite.py, src/agenty/workspace.py, tests/test_suite.py, tests/test_workspace.py]
+    acceptance:
+      - "b-1 默认与指定路径创建 Worker"
+      - "b-2 六个 suite 组件完整"
+      - "b-3 snapshot 实际写入 memory/session/log/MEMORY"
+    estimated_loc: ~500
+  - name: v1.01-c
+    title: CLI、runtime 启动与安全迁移
+    deps: [v1.01-a, v1.01-b]
+    reads: [locate:cli]
+    files: [src/agenty/cli.py, tests/test_cli.py]
+    acceptance:
+      - "c-1 CLI 覆盖三个生命周期阶段"
+      - "c-2 dry-run 与假 runtime 启动状态闭环"
+      - "c-3 迁移保留身份、历史和源目录"
+      - "c-4 Git 初始化与本地状态忽略规则"
+    estimated_loc: ~500
+
+acceptance_count: 11
+total_estimated_loc: ~1650
+
+risk_register:
+  - id: R1
+    risk: 状态事件和快照不一致
+    mitigation: event-first、fsync、原子替换、恢复测试
+    severity: high
+  - id: R2
+    risk: 并发 CLI 丢 revision
+    mitigation: Agent 级 flock 和多进程测试
+    severity: high
+  - id: R3
+    risk: 迁移损坏用户数据
+    mitigation: 拒绝非空目标、保留源、失败回退状态
+    severity: high
+  - id: R4
+    risk: runtime 命令差异
+    mitigation: profile 只声明可执行命令，深度 adapter 后移
+    severity: medium
+
+git_workflow:
+  branch_creation: bootstrap from legacy main@9876fda
+  feature_order: [v1.01-a, v1.01-b, v1.01-c]
+  merge_policy: --no-ff
+  before_merge_checks:
+    - "python -m unittest discover -s tests -v"
+    - "Python 3.10 与 3.14 全量通过"
+    - "git diff --check"
+    - "vault_tool.py check --strict knowledge"
+  final_tag: null
+
+deployment_checklist:
+  - "uv build 成功"
+  - "隔离 AGENTY_HOME 完成 CLI 端到端"
+  - "真实 ~/.agenty 与 ~/agents 未被测试触碰"
+  - "迁移目标 git rev-parse --is-inside-work-tree 为 true"
+
+notes:
+  - "v1.01 为 API 开发版，不打 final"
+  - "同一 Git 项目的多 Agent suite 布局后移"
+
+签名: Agent-PM-1.01
