@@ -151,6 +151,10 @@ class RuntimeFailureCode(str, Enum):
     INVALID_VERSION = "runtime_invalid_version"
     UNSUPPORTED_VERSION = "runtime_unsupported_version"
     INTERNAL = "runtime_internal_error"
+    TURN_REJECTED = "turn_rejected"
+    TURN_FAILED = "turn_failed"
+    TURN_TIMEOUT = "turn_timeout"
+    INVALID_OUTPUT = "runtime_invalid_output"
 
 
 RuntimeEventName: TypeAlias = (
@@ -259,6 +263,38 @@ class RuntimeFailure(BaseModel):
     code: RuntimeFailureCode
     message: str
     details: dict[str, Any] = Field(default_factory=dict)
+
+
+class RuntimeTurnRequest(BaseModel):
+    """Provider-neutral command for one new-session runtime turn."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    turn_id: str
+    correlation_id: str
+    prompt: str
+    working_directory: str
+    model: str | None = None
+    effort: str | None = None
+
+    @field_validator(
+        "turn_id", "correlation_id", "working_directory", "model", "effort"
+    )
+    @classmethod
+    def validate_request_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @field_validator("prompt")
+    @classmethod
+    def validate_prompt(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("value must not be empty")
+        return value
 
 
 class RuntimeEvent(BaseModel):

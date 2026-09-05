@@ -1,6 +1,6 @@
 # RuntimeMachine 状态与事件清单
 
-> 状态：v0.01-a 公共协议实现基线，待验收
+> 状态：v0.01 公共协议已完成；v0.03-a 已实现 TurnMachine
 >
 > 首个校验对象：OpenCode 1.18.26
 >
@@ -136,6 +136,8 @@ session_closed
 ## 4. TurnMachine
 
 一次用户输入对应一个 Turn。Turn 到达终态后不复用。
+
+对应实现位于 `src/agenty/runtime/turn.py`。Machine 使用普通 Python 对象，`RuntimeTurnRequest` 与 `TurnStateData` 使用 Pydantic v2。每个请求必须显式携带工作目录；Session ID 可由 Runtime 首个有效事件建立，之后不得在同一 Turn 中改变。
 
 ### 状态
 

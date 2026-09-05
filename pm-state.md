@@ -10,7 +10,7 @@
 
 ## 版本状态树
 
-### v0.01 (ACTIVE) — Runtime 接入基线
+### v0.01 (CODE_COMPLETE) — Runtime 接入基线
 
 - **v0.01-a Runtime 公共协议** (CODE_COMPLETE)
   - 分支：`v0.01-a`
@@ -35,6 +35,20 @@
   - 质量门：30 项 pytest 通过、真实无副作用 probe 通过、data 未被 Git 追踪
   - 工具缺口：项目未安装 ruff，未形成 lint 结论
 
+### v0.03 (ACTIVE) — Runtime 最小 Turn 调用链
+
+- 父基线：`v0.01-c@80be93f`；v0.01 为不发布的 API 迭代，因此没有 final tag
+- 跳过 v0.02：本阶段是协议和后端行为，不属于偶数 Web 版
+- **v0.03-a 公共 Turn 协议与状态机** (CODE_COMPLETE)
+  - 分支：`v0.03-a`
+  - RuntimeTurnRequest 强制绑定 turn、correlation、prompt 和工作目录
+  - TurnMachine 拒绝非法生命周期、错误事件域及 Runtime/Turn/Session 上下文漂移
+  - TurnStateData 使用 Pydantic v2，可 JSON 往返并恢复 Machine
+  - 质量门：47 项 pytest、compileall、diff check、vault strict 全部通过；data 未被 Git 追踪
+  - 工具缺口：项目未安装 ruff，未形成 lint 结论
+- **v0.03-b OpenCode 1.18.26 JSON 调用适配** (PLANNED)
+- **v0.03-c 显式真实模型冒烟测试** (PLANNED)
+
 ## 历史分支
 
 - `feature/file-agent-foundation` (ABANDONED)：方向确认前过早实现；保留本地提交作为历史，不合并、不推送。
@@ -42,7 +56,7 @@
 
 ## 当前焦点
 
-- 验收 v0.01-c Probe 边界；确认后再决定配置或 Session 的下一切片。
+- 验收 v0.03-a Turn 设计回归基线；确认后进入 v0.03-b OpenCode JSON 调用适配。
 
 ## 已确认的后续设计约束
 
@@ -65,6 +79,9 @@
 - [x] 修复状态模型实现约束：统一为 Pydantic v2
 - [x] 将 OpenCode Probe 迁移到 v0.01-b 公共模型
 - [ ] 再推进 OpenCode 配置与会话切片
+- [x] v0.03-a：实现公共 Turn 请求、状态数据和状态机
+- [ ] v0.03-b：实现 OpenCode JSON 调用适配
+- [ ] v0.03-c：增加显式开启的真实模型冒烟测试
 
 ## 不变量
 

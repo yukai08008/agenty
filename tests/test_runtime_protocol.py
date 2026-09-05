@@ -11,6 +11,7 @@ from agenty.runtime.protocol import (
     RuntimeEvent,
     RuntimeIdentity,
     RuntimeSnapshot,
+    RuntimeTurnRequest,
     SessionEvent,
     SessionState,
     TurnEvent,
@@ -77,7 +78,12 @@ def test_public_event_names_are_unique_across_domains():
 
 
 def test_public_protocol_has_no_vendor_specific_fields():
-    public_models = (RuntimeIdentity, RuntimeEvent, RuntimeSnapshot)
+    public_models = (
+        RuntimeIdentity,
+        RuntimeEvent,
+        RuntimeSnapshot,
+        RuntimeTurnRequest,
+    )
     field_names = {
         field_name.lower()
         for model in public_models
@@ -88,7 +94,12 @@ def test_public_protocol_has_no_vendor_specific_fields():
 
 
 def test_public_protocol_models_use_pydantic_and_round_trip_json():
-    public_models = (RuntimeIdentity, RuntimeEvent, RuntimeSnapshot)
+    public_models = (
+        RuntimeIdentity,
+        RuntimeEvent,
+        RuntimeSnapshot,
+        RuntimeTurnRequest,
+    )
     assert all(issubclass(model, BaseModel) for model in public_models)
 
     snapshot = RuntimeSnapshot(
@@ -124,6 +135,11 @@ def test_current_baseline_does_not_add_unconfirmed_transition_states():
 def test_package_root_exports_the_new_protocol_snapshot_and_event():
     from agenty.runtime import RuntimeEvent as ExportedRuntimeEvent
     from agenty.runtime import RuntimeSnapshot as ExportedRuntimeSnapshot
+    from agenty.runtime import RuntimeTurnRequest as ExportedRuntimeTurnRequest
+    from agenty.runtime import TurnMachine as ExportedTurnMachine
+    from agenty.runtime.turn import TurnMachine
 
     assert ExportedRuntimeEvent is RuntimeEvent
     assert ExportedRuntimeSnapshot is RuntimeSnapshot
+    assert ExportedRuntimeTurnRequest is RuntimeTurnRequest
+    assert ExportedTurnMachine is TurnMachine

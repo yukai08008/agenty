@@ -12,6 +12,10 @@
 
 1. `v0.01`：Runtime Machine 公共模型与 OpenCode 底层适配。
 
+第二个 API 版本已在 v0.01 验收后确定：
+
+2. `v0.03`：Runtime 最小 Turn 调用链；先做公共状态机，再接 OpenCode JSON，最后增加显式真实冒烟测试。
+
 后续版本只保留方向，不提前冻结范围和编号：
 
 - 项目根目录基础能力与 Agenty Machine。

@@ -1,0 +1,70 @@
+milestone: M1-Anna
+version: v0.03
+parent_final: null
+parent_baseline: "v0.01@80be93f"
+title: Runtime 最小 Turn 调用链
+type: api
+prd: dev_plans/v0.01-v0.03/PRD.md
+test_cases: dev_plans/v0.01-v0.03/TEST_CASES.md
+
+invariants:
+  - "RuntimeMachine 与 AgentyMachine 只通过命令和事件协作"
+  - "公共 Turn 模型不包含 OpenCode 专属参数"
+  - "跨边界和可持久化状态数据使用 Pydantic v2"
+  - "调用必须显式绑定工作目录"
+  - "默认不启用自动批准，自动测试不调用真实模型"
+  - "未实现 Environment 校验前不开放 Session resume/fork"
+  - "运行时数据不在 git 追踪中"
+
+feature_branches:
+  - name: v0.03-a
+    title: 公共 Turn 协议与状态机
+    deps: []
+    acceptance:
+      - "PA-1 Turn 请求明确绑定工作目录、prompt 和关联 ID"
+      - "PA-2 TurnMachine 只接受合法生命周期和输出事件"
+      - "PA-3 Turn 状态数据可校验、序列化并恢复"
+      - "PA-4 公共协议不存在 Runtime 厂商专属字段"
+  - name: v0.03-b
+    title: OpenCode 1.18.26 JSON 调用适配
+    deps: [v0.03-a]
+    acceptance:
+      - "PB-1 假 OpenCode 可驱动完整成功 Turn"
+      - "PB-2 错误、超时、畸形 JSON 和非零退出进入明确失败状态"
+      - "PB-3 Session ID 和公共输出事件可从 JSONL 归一化"
+      - "PB-4 命令绑定工作目录且不包含自动批准"
+  - name: v0.03-c
+    title: 显式真实模型冒烟测试
+    deps: [v0.03-b]
+    acceptance:
+      - "PC-1 默认测试不会调用真实模型"
+      - "PC-2 显式开启后可记录真实调用证据"
+      - "PC-3 只提升实测覆盖能力的证据等级"
+
+acceptance_count: 11
+
+risk_register:
+  - id: R1
+    risk: 测试意外产生模型费用
+    mitigation: live 测试默认跳过并要求显式开关
+    severity: high
+  - id: R2
+    risk: Session 与项目环境错配
+    mitigation: 本版只允许新 Session并强制传入工作目录
+    severity: high
+  - id: R3
+    risk: OpenCode 私有事件污染公共协议
+    mitigation: Adapter 归一化合同测试
+    severity: high
+
+git_workflow:
+  branch_creation: from v0.01-c@80be93f because v0.01 is an unreleased API baseline
+  feature_order: v0.03-a, v0.03-b, v0.03-c
+  merge_policy: --no-ff
+  before_merge_checks:
+    - "pytest all PASS"
+    - "合同测试 PASS"
+    - "git ls-files data/ | wc -l == 0"
+  final_tag: null
+
+签名: Agent-PM-v0.03

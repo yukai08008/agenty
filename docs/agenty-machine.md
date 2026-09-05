@@ -39,7 +39,7 @@ BLOCKED
 
 `runtime_acceptable` 至少检查：
 
-- RuntimeMachine 状态为 `READY`；
+- RuntimeMachine Availability 状态为 `AVAILABLE`；
 - Runtime ID 与配置选择一致；
 - 版本满足适配器支持范围；
 - 当前阶段所需 capability 全部存在。
@@ -52,10 +52,10 @@ BLOCKED
 AgentyMachine.RESOLVING_RUNTIME
             │ probe command
             ▼
-RuntimeMachine.UNKNOWN → PROBING → READY / UNAVAILABLE
+RuntimeMachine.UNKNOWN → PROBING → AVAILABLE / UNAVAILABLE / INCOMPATIBLE
             │ RuntimeSnapshot
             ▼
 Agenty runtime_accepted / runtime_rejected
 ```
 
-这个交汇点已经足以指导下一底层切片：RuntimeMachine 需要增加配置上下文，并验证模型与 effort 能否设置；暂时还不需要创建 Session。
+这个交汇点已经由 v0.01 实现。下一底层切片是 v0.03 的最小 Turn 调用链：请求必须显式绑定工作目录；在完整 Environment identity 完成前，只允许新建 Session，不开放 resume/fork。

@@ -141,6 +141,10 @@ stateDiagram-v2
 
 并非每个通道都支持 `WAITING_INPUT/WAITING_APPROVAL`。状态图表达公共上限，具体通道通过 capability guard 决定转移是否合法。
 
+v0.03-a 已实现纯 `TurnMachine`。每个实例只负责一个 Turn，通过标准 `RuntimeEvent` 驱动；生命周期非法、Runtime/Turn/correlation 不匹配或 Session ID 中途改变时拒绝事件且不修改状态。`TurnStateData` 使用 Pydantic v2，可 JSON 往返恢复。
+
+公共 `RuntimeTurnRequest` 强制包含 `turn_id`、`correlation_id`、`prompt` 和 `working_directory`，可选携带 model 与 effort。工作目录只是本次调用的最低环境绑定，不等同于完整的 ProjectEnvironment identity。
+
 对 OpenCode 1.18.26 `cli-run-local --format json`：
 
 - 支持 `CREATED → SUBMITTING → RUNNING`。
@@ -245,7 +249,7 @@ v0.01-c 已将 OpenCode 1.18.26 Probe 迁移到公共协议：
 
 本机 OpenCode 1.18.26 已真实通过该无副作用探测，结果为 `AVAILABLE`，并发现 8 条 advertised 能力记录。
 
-尚未实现 Channel、Session、Turn 的运行行为，也尚未验证模型切换、effort、Session 恢复或分叉的实际效果；这些不能由本版本的 help 探测推导。
+尚未实现 Channel、Session 的运行行为。Turn 已有公共状态机，但 OpenCode 命令执行和 JSON 归一化属于 v0.03-b；模型切换、effort、Session 恢复或分叉的实际效果仍未验证。
 
 ## 12. 不变量
 
