@@ -36,15 +36,16 @@ AgentyMachine 后续负责：
 
 ### 2.2 RuntimeMachine
 
-RuntimeMachine 自身采用层级结构：
+RuntimeMachine 自身是聚合状态机：
 
 ```text
-Runtime lifecycle
-└── Session lifecycle
-    └── Turn / execution lifecycle
+AvailabilityMachine
+├── ChannelMachine
+├── SessionMachine
+└── TurnMachine
 ```
 
-模型、effort、工作目录和 Runtime 类型属于上下文配置；改变它们是事件或命令，不为每个取值创建状态。
+Availability、通道、Session 和 Turn 分别维护状态，通过守卫建立依赖。模型、effort、工作目录和 Runtime 类型属于有作用域的配置；改变它们是事件或命令，不为每个取值创建状态。
 
 ## 3. 协作边界
 
@@ -79,7 +80,7 @@ execution.interrupted / timeout
 
 ## 4. 能力协商
 
-统一协议不抹平不同 Runtime 的差异。每个 RuntimeMachine 报告能力，例如：
+统一协议不抹平不同 Runtime 的差异。能力必须绑定 `Runtime + 版本 + 通道`，并携带证据等级。例如：
 
 ```text
 models

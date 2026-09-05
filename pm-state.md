@@ -15,7 +15,9 @@
 - **feature/runtime-machine-opencode** (DEVELOPING)
   - 底层切片 1：Runtime 状态模型、公共协议和 OpenCode `probe`（完成，10 项测试通过）
   - 顶层切片 1：AgentyMachine `RESOLVING_RUNTIME` 协议校准（完成设计）
-  - 当前切片：等待确认后进入 Runtime 配置（model/effort）
+  - 底层设计 2：基于 OpenCode 1.18.26 完成功能抽象与 Runtime 聚合状态机设计
+  - **issue-capability-evidence-scope** (FOUND)：现有 probe 将帮助参数直接视为已验证能力，缺少版本、通道、证据等级和约束
+  - 当前切片：等待确认聚合状态机，再修正 capability 模型
 
 ## 历史分支
 
@@ -23,7 +25,7 @@
 
 ## 当前焦点
 
-- 确认第一次交汇结果，再推进 RuntimeMachine 配置切片。
+- 确认 RuntimeMachine 的 Availability/Channel/Session/Turn 四部分设计。
 
 ## 待办
 
@@ -33,6 +35,9 @@
 - [x] 定义 Runtime 状态、事件、能力和错误模型
 - [x] 实现 OpenCode 无副作用探测
 - [x] 回到 AgentyMachine 校准顶层所需事件
+- [x] 基于 OpenCode 1.18.26 完成功能域抽象
+- [x] 设计 Availability/Channel/Session/Turn 聚合状态机
+- [ ] 修正 capability 的版本、通道和证据模型
 - [ ] 再推进 OpenCode 配置与会话切片
 
 ## 不变量

@@ -19,8 +19,10 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 - M1 目标是创建第一个可运行 Agent Anna。
 - v0.01 已完成 RuntimeMachine 与 OpenCode 无副作用探测：本机 OpenCode 1.18.26 进入 READY，并报告 8 项可验证能力。
 - 第一次顶层校准确定 AgentyMachine 使用 `RESOLVING_RUNTIME` 消费公共 RuntimeSnapshot，并通过 capability 守卫接受或阻断。
+- OpenCode 1.18.26 的能力分析表明 RuntimeMachine 应聚合 Availability、Channel、Session、Turn 四个状态机；能力必须绑定版本、通道和证据等级。
 - 顶层和底层采用交替设计，在 Anna 完整执行链路处交汇。
 
 ## Details
 
 - [[dual-machine-boundary]]
+- [[runtime-capability-scope]]
