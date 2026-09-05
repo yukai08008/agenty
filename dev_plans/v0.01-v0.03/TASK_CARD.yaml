@@ -16,6 +16,29 @@ invariants:
   - "未实现 Environment 校验前不开放 Session resume/fork"
   - "运行时数据不在 git 追踪中"
 
+deliverables:
+  - module: src/agenty/runtime/protocol.py
+    change: 增加中立 RuntimeTurnRequest 与 Turn 失败代码
+    public_api:
+      - RuntimeTurnRequest
+  - module: src/agenty/runtime/turn.py
+    change: 标准事件驱动的纯 Turn 状态机
+    public_api:
+      - TurnMachine
+      - TurnStateData
+  - module: src/agenty/runtime/runner.py
+    change: 消费 RuntimeTurnAdapter 公共事件的通用调用编排
+    public_api:
+      - RuntimeTurnRunner
+  - module: src/agenty/runtime/opencode.py
+    change: OpenCode 1.18.26 新 Session JSONL 调用适配
+    public_api:
+      - OpenCodeRuntimeAdapter.iter_turn_events
+  - module: tests/test_turn_machine.py
+    change: Turn 生命周期、上下文和恢复合同测试
+  - module: tests/test_opencode_turn.py
+    change: 无真实模型的 OpenCode 调用集成测试
+
 feature_branches:
   - name: v0.03-a
     title: 公共 Turn 协议与状态机

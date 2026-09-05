@@ -30,6 +30,8 @@
 | PB-02 | JSON error、畸形 JSON、非零退出和超时分别失败 | PB-2 | 是 |
 | PB-03 | 命令固定使用 json 格式和指定工作目录 | PB-4 | 是 |
 | PB-04 | 命令不含 `--auto`、resume 或 fork | PB-4 | 是 |
+| PB-05 | 以 `--auto` 开头的 prompt 位于参数分隔符之后 | PB-4 | 是 |
+| PB-06 | 失败的 tool_use 归一化为 `tool_failed` | PB-3 | 是 |
 
 ## 3. v0.03-c 显式真实冒烟测试
 

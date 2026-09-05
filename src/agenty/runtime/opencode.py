@@ -2,21 +2,27 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 
-from agenty.runtime.adapters import RuntimeAdapterError
+from agenty.runtime.adapters import RuntimeAdapterError, RuntimeTurnAdapterError
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     CapabilityRecord,
     CapabilitySupport,
     ChannelMode,
     EvidenceLevel,
+    OutputEvent,
+    RuntimeEvent,
     RuntimeFailure,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeTurnRequest,
+    TurnEvent,
 )
 
 
@@ -140,11 +146,271 @@ class OpenCodeRuntimeAdapter:
             )
         return tuple(records)
 
+    def iter_turn_events(
+        self,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+    ) -> Iterator[RuntimeEvent]:
+        self._validate_turn(runtime, request)
+        command = self._turn_command(runtime, request)
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=request.working_directory,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except OSError as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode turn could not start",
+                    details={"error": str(exc)},
+                )
+            ) from exc
+
+        yield self._turn_event(TurnEvent.TURN_ACCEPTED, runtime, request)
+
+        try:
+            stdout, stderr = process.communicate(timeout=self.timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            _, stderr = process.communicate()
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_TIMEOUT,
+                    message="OpenCode turn timed out",
+                    details={
+                        "timeout_seconds": self.timeout_seconds,
+                        "stderr": stderr.strip(),
+                    },
+                ),
+                timed_out=True,
+            ) from exc
+
+        session_id = None
+        saw_event = False
+        runtime_error = None
+        for line_number, line in enumerate(stdout.splitlines(), start=1):
+            if not line.strip():
+                continue
+            raw = self._parse_json_line(line, line_number)
+            saw_event = True
+            event_session = raw.get("sessionID")
+            if event_session is not None and (
+                not isinstance(event_session, str) or not event_session.strip()
+            ):
+                raise self._invalid_output(
+                    "OpenCode event has an invalid sessionID",
+                    line_number=line_number,
+                )
+            if event_session:
+                if session_id is not None and event_session != session_id:
+                    raise self._invalid_output(
+                        "OpenCode changed sessionID during one turn",
+                        line_number=line_number,
+                    )
+                session_id = event_session
+
+            normalized = self._normalize_output(
+                raw,
+                runtime,
+                request,
+                session_id,
+                line_number,
+            )
+            yield normalized
+            if raw.get("type") == "error":
+                runtime_error = raw
+
+        if not saw_event or session_id is None:
+            raise self._invalid_output(
+                "OpenCode turn produced no session-bound JSON events"
+            )
+        if runtime_error is not None:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_FAILED,
+                    message="OpenCode reported a runtime error",
+                    details={"error": self._error_text(runtime_error)},
+                )
+            )
+        if process.returncode != 0:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_FAILED,
+                    message="OpenCode turn exited unsuccessfully",
+                    details={
+                        "returncode": process.returncode,
+                        "stderr": stderr.strip(),
+                    },
+                )
+            )
+
+        yield self._turn_event(
+            TurnEvent.TURN_SUCCEEDED,
+            runtime,
+            request,
+            session_id=session_id,
+        )
+
     def _resolve_executable(self) -> str | None:
         candidate = Path(self.executable).expanduser()
         if candidate.parent != Path("."):
             return str(candidate.resolve()) if candidate.is_file() else None
         return shutil.which(self.executable)
+
+    def _validate_turn(
+        self,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+    ) -> None:
+        if (
+            runtime.runtime_kind != "opencode"
+            or runtime.runtime_version not in self.supported_versions
+            or runtime.executable is None
+        ):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="turn requires a detected, supported OpenCode runtime",
+                )
+            )
+        if not Path(request.working_directory).is_dir():
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="turn working directory does not exist",
+                    details={"working_directory": request.working_directory},
+                )
+            )
+
+    def _turn_command(
+        self,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+    ) -> list[str]:
+        assert runtime.executable is not None
+        command = [
+            runtime.executable,
+            "run",
+            "--format",
+            "json",
+            "--dir",
+            request.working_directory,
+        ]
+        if request.model is not None:
+            command.extend(("--model", request.model))
+        if request.effort is not None:
+            command.extend(("--variant", request.effort))
+        command.extend(("--", request.prompt))
+        return command
+
+    def _parse_json_line(self, line: str, line_number: int) -> dict:
+        try:
+            raw = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise self._invalid_output(
+                "OpenCode emitted malformed JSON",
+                line_number=line_number,
+            ) from exc
+        if not isinstance(raw, dict):
+            raise self._invalid_output(
+                "OpenCode JSON event must be an object",
+                line_number=line_number,
+            )
+        return raw
+
+    def _normalize_output(
+        self,
+        raw: dict,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+        session_id: str | None,
+        line_number: int,
+    ) -> RuntimeEvent:
+        event_type = raw.get("type")
+        event_names = {
+            "step_start": OutputEvent.STEP_STARTED,
+            "step_finish": OutputEvent.STEP_FINISHED,
+            "text": OutputEvent.TEXT_EMITTED,
+            "reasoning": OutputEvent.REASONING_EMITTED,
+            "error": OutputEvent.RUNTIME_ERROR_EMITTED,
+        }
+        part = raw.get("part")
+        if event_type == "tool_use":
+            tool_state = part.get("state") if isinstance(part, dict) else None
+            status = (
+                tool_state.get("status") if isinstance(tool_state, dict) else None
+            )
+            name = (
+                OutputEvent.TOOL_FAILED
+                if status == "error"
+                else OutputEvent.TOOL_COMPLETED
+            )
+        else:
+            name = event_names.get(event_type)
+        if name is None:
+            raise self._invalid_output(
+                f"OpenCode emitted unknown event type: {event_type!r}",
+                line_number=line_number,
+            )
+        payload = {}
+        if name in {OutputEvent.TEXT_EMITTED, OutputEvent.REASONING_EMITTED}:
+            text = part.get("text") if isinstance(part, dict) else None
+            if isinstance(text, str):
+                payload["text"] = text
+        if name in {OutputEvent.TOOL_COMPLETED, OutputEvent.TOOL_FAILED}:
+            if isinstance(part, dict) and isinstance(part.get("tool"), str):
+                payload["tool"] = part["tool"]
+        if name is OutputEvent.RUNTIME_ERROR_EMITTED:
+            payload["message"] = self._error_text(raw)
+        return RuntimeEvent(
+            name=name,
+            runtime=runtime,
+            correlation_id=request.correlation_id,
+            turn_id=request.turn_id,
+            session_id=session_id,
+            payload=payload,
+            raw_event=raw,
+        )
+
+    def _invalid_output(self, message: str, **details) -> RuntimeTurnAdapterError:
+        return RuntimeTurnAdapterError(
+            RuntimeFailure(
+                code=RuntimeFailureCode.INVALID_OUTPUT,
+                message=message,
+                details=details,
+            )
+        )
+
+    def _error_text(self, raw: dict) -> str:
+        error = raw.get("error")
+        if isinstance(error, str):
+            return error
+        if isinstance(error, dict):
+            for key in ("message", "name"):
+                if isinstance(error.get(key), str):
+                    return error[key]
+        return "OpenCode runtime error"
+
+    def _turn_event(
+        self,
+        name: TurnEvent,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+        *,
+        session_id: str | None = None,
+    ) -> RuntimeEvent:
+        return RuntimeEvent(
+            name=name,
+            runtime=runtime,
+            correlation_id=request.correlation_id,
+            turn_id=request.turn_id,
+            session_id=session_id,
+        )
 
     def _run_probe(self, executable: str, *args: str) -> str:
         try:

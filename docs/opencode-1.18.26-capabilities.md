@@ -187,3 +187,22 @@ channel: transient_process
 ```
 
 这说明 Runtime 宣传了相应入口，不代表 Agenty 已验证其调用语义。真实 Session、Turn、模型及 effort 操作留给后续版本。
+
+## 10. v0.03-b Turn 调用适配
+
+OpenCode Adapter 已实现新 Session 的同步 JSONL 调用：
+
+```text
+opencode run --format json --dir <working_directory> [--model ...] [--variant ...] -- <prompt>
+```
+
+边界如下：
+
+- 同时使用进程 `cwd` 和 `--dir` 绑定工作目录。
+- `--` 隔离 prompt，避免以 `--auto` 等文本开头的 prompt 被解释成 CLI 参数。
+- 不传 `--auto`、`--session`、`--continue` 或 `--fork`。
+- `step_start`、`step_finish`、`text`、`reasoning`、`tool_use`、`error` 被转换为公共输出事件。
+- JSON error、非零退出、畸形输出和超时进入结构化失败终态。
+- Session ID 从 JSON 事件建立，同一 Turn 内改变时拒绝继续。
+
+上述结论目前属于假可执行文件集成测试，不提升为 `live_verified`。真实模型冒烟测试属于 v0.03-c，必须显式开启。

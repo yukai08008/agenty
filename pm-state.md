@@ -46,7 +46,14 @@
   - TurnStateData 使用 Pydantic v2，可 JSON 往返并恢复 Machine
   - 质量门：47 项 pytest、compileall、diff check、vault strict 全部通过；data 未被 Git 追踪
   - 工具缺口：项目未安装 ruff，未形成 lint 结论
-- **v0.03-b OpenCode 1.18.26 JSON 调用适配** (PLANNED)
+- **v0.03-b OpenCode 1.18.26 JSON 调用适配** (CODE_COMPLETE)
+  - 分支：`v0.03-b`
+  - RuntimeTurnRunner 只处理公共事件，OpenCode Adapter 隔离命令和 JSONL 细节
+  - 当前只创建新 Session；工作目录同时绑定 cwd 与 `--dir`
+  - prompt 置于 `--` 后，默认不含 auto、resume 或 fork 参数
+  - 成功、Runtime error、tool error、非零退出、畸形 JSON、超时与目录缺失均有自动测试
+  - 质量门：55 项 pytest、compileall、diff check、vault strict 全部通过；data 未被 Git 追踪
+  - 真实模型尚未调用；项目仍未安装 ruff
 - **v0.03-c 显式真实模型冒烟测试** (PLANNED)
 
 ## 历史分支
@@ -56,7 +63,7 @@
 
 ## 当前焦点
 
-- 验收 v0.03-a Turn 设计回归基线；确认后进入 v0.03-b OpenCode JSON 调用适配。
+- 验收 v0.03-b 假 Runtime 调用链；确认后进入 v0.03-c 显式真实模型冒烟测试。
 
 ## 已确认的后续设计约束
 
@@ -80,7 +87,7 @@
 - [x] 将 OpenCode Probe 迁移到 v0.01-b 公共模型
 - [ ] 再推进 OpenCode 配置与会话切片
 - [x] v0.03-a：实现公共 Turn 请求、状态数据和状态机
-- [ ] v0.03-b：实现 OpenCode JSON 调用适配
+- [x] v0.03-b：实现 OpenCode JSON 调用适配
 - [ ] v0.03-c：增加显式开启的真实模型冒烟测试
 
 ## 不变量
