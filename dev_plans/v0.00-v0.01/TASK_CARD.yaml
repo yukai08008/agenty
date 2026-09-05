@@ -1,0 +1,37 @@
+milestone: M1-Anna
+version: v0.01
+parent_final: null
+bootstrap_base: "9876fda"
+title: Runtime Machine 与 OpenCode 底层适配
+type: api
+prd: dev_plans/v0.00-v0.01/PRD.md
+test_cases: dev_plans/v0.00-v0.01/TEST_CASES.md
+
+invariants:
+  - "RuntimeMachine 与 AgentyMachine 只通过命令和事件协作"
+  - "公共模型不包含 OpenCode 专属参数"
+  - "默认不启用自动批准"
+  - "自动测试不调用真实模型"
+  - "运行时数据不在 git 追踪中"
+
+feature_branches:
+  - name: feature/runtime-machine-opencode
+    title: Runtime 公共模型和 OpenCode 分层适配
+    deps: []
+    acceptance:
+      - "RM-1 Runtime 状态转移由事件驱动"
+      - "RM-2 公共能力模型可表达 Runtime 差异"
+      - "OC-1 probe 不调用模型即可报告版本与能力"
+      - "OC-2 缺失或异常 OpenCode 进入明确状态"
+      - "AR-1 probe 结果足以供未来 AgentyMachine 决策"
+
+git_workflow:
+  branch_creation: from bootstrap base 9876fda
+  merge_policy: --no-ff
+  before_merge_checks:
+    - "pytest all PASS"
+    - "合同测试 PASS"
+    - "git ls-files data/ | wc -l == 0"
+  final_tag: null
+
+签名: Agent-PM-v0.01
