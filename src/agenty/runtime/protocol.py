@@ -126,6 +126,22 @@ class OutputEvent(str, Enum):
     RUNTIME_ERROR_EMITTED = "runtime_error_emitted"
 
 
+class CapabilitySupport(str, Enum):
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
+    CONDITIONAL = "conditional"
+    UNKNOWN = "unknown"
+
+
+class EvidenceLevel(str, Enum):
+    UNKNOWN = "unknown"
+    ADVERTISED = "advertised"
+    SOURCE_CONFIRMED = "source_confirmed"
+    PROBE_VERIFIED = "probe_verified"
+    INTEGRATION_VERIFIED = "integration_verified"
+    LIVE_VERIFIED = "live_verified"
+
+
 RuntimeEventName: TypeAlias = (
     AvailabilityEvent | ChannelEvent | SessionEvent | TurnEvent | OutputEvent
 )
@@ -141,6 +157,51 @@ class RuntimeIdentity:
     channel: ChannelMode | None = None
     endpoint: str | None = None
     process_id: int | None = None
+
+
+@dataclass(frozen=True)
+class CapabilityRecord:
+    """Version- and channel-scoped capability claim with evidence."""
+
+    capability: str
+    runtime: RuntimeIdentity
+    support: CapabilitySupport
+    evidence: EvidenceLevel
+    evidence_source: str | None = None
+    constraints: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.capability.strip():
+            raise ValueError("capability must not be empty")
+        if not self.runtime.runtime_version:
+            raise ValueError("capability requires a runtime version")
+        if self.runtime.channel is None:
+            raise ValueError("capability requires a channel")
+        if self.evidence is not EvidenceLevel.UNKNOWN and not self.evidence_source:
+            raise ValueError("known evidence requires an evidence source")
+        if (
+            self.support is not CapabilitySupport.UNKNOWN
+            and self.evidence is EvidenceLevel.UNKNOWN
+        ):
+            raise ValueError("a support claim requires evidence")
+        if (
+            self.support is CapabilitySupport.CONDITIONAL
+            and not self.constraints
+        ):
+            raise ValueError("conditional support requires constraints")
+
+    @property
+    def key(self) -> tuple[str, str, ChannelMode, str]:
+        version = self.runtime.runtime_version
+        channel = self.runtime.channel
+        assert version is not None
+        assert channel is not None
+        return (
+            self.runtime.runtime_kind,
+            version,
+            channel,
+            self.capability,
+        )
 
 
 @dataclass(frozen=True)
@@ -170,6 +231,7 @@ class RuntimeSnapshot:
     turn: TurnState | None = None
     session_id: str | None = None
     turn_id: str | None = None
+    capabilities: tuple[CapabilityRecord, ...] = ()
     sequence: int = 0
     observed_at: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)

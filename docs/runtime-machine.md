@@ -210,12 +210,15 @@ raw_event（可选，诊断用途）
 ```text
 RuntimeCapabilityRecord
   capability
-  channel
-  support_status
-  evidence_level
+  runtime identity（必须包含 version 和 channel）
+  support: supported / unsupported / conditional / unknown
+  evidence: unknown / advertised / source_confirmed / probe_verified /
+            integration_verified / live_verified
   evidence_source
   constraints
 ```
+
+v0.01-b 使用标准库 dataclass 实现该记录，代码位于 `src/agenty/runtime/protocol.py`。`conditional` 必须附带约束，除 `unknown` 外的支持声明必须有证据。
 
 例如：
 
@@ -230,13 +233,12 @@ constraint: permission requests are auto-rejected unless --auto
 
 ## 11. 当前实现与设计差距
 
-现有 probe 代码只返回 capability 名称集合，会把“帮助中存在某参数”误当成“行为已验证”。下一实现切片需要：
+旧 probe 原型仍只返回 capability 名称集合，会把“帮助中存在某参数”误当成“行为已验证”。v0.01-b 已完成公共 Capability 模型和纯 AvailabilityMachine；v0.01-c 负责迁移 OpenCode Probe：
 
-1. 将 `READY` 更名或迁移为 `AVAILABLE`。
-2. 增加 `INCOMPATIBLE`。
-3. 把能力改成带版本、通道、证据等级和约束的记录。
+1. 将旧 `RuntimeMachine.READY` 迁移为新 `AvailabilityMachine.AVAILABLE`。
+2. 将不支持的版本映射到 `INCOMPATIBLE`。
+3. 将帮助参数转换为 `advertised` 证据，而不是已验证行为。
 4. 不再仅凭 `--interactive` 参数声明交互窗口已验证。
-5. 在完成以上校正后，才进入模型/effort 配置和 Session 实现。
 
 ## 12. 不变量
 

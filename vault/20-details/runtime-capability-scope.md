@@ -28,3 +28,9 @@ OpenCode 1.18.26 同时提供本地 run、attach、HTTP server、ACP 和交互�
 - 源码、集成测试和真实运行可以逐步提高证据等级。
 - Agenty 在发命令前必须按当前通道检查 capability guard。
 - OpenCode 1.18.26 `cli-run-local` 不声明交互审批能力。
+
+## Implementation
+
+v0.01-b 已用标准库 dataclass 实现 `CapabilityRecord`、`CapabilitySupport`、`EvidenceLevel` 和纯 `AvailabilityMachine`。支持状态与证据等级分开表达；`conditional` 必须附带约束。
+
+OpenCode Probe 仍使用旧 capability 集合，迁移属于 v0.01-c，当前不能把模型完成误报为适配完成。

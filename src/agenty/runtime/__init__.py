@@ -1,24 +1,36 @@
 """Runtime state machine and adapter contracts."""
 
-from agenty.runtime.machine import InvalidRuntimeTransition, RuntimeMachine
+from agenty.runtime.availability import (
+    AvailabilityMachine,
+    InvalidAvailabilityTransition,
+)
+from agenty.runtime.machine import (
+    InvalidRuntimeTransition as LegacyInvalidRuntimeTransition,
+)
+from agenty.runtime.machine import RuntimeMachine as LegacyProbeMachine
 from agenty.runtime.models import (
-    RuntimeCapability,
-    RuntimeEvent,
-    RuntimeEventType,
+    RuntimeCapability as LegacyRuntimeCapability,
+    RuntimeEvent as LegacyRuntimeEvent,
+    RuntimeEventType as LegacyRuntimeEventType,
     RuntimeFailure,
     RuntimeFailureCode,
-    RuntimeInfo,
-    RuntimeSnapshot,
-    RuntimeState,
+    RuntimeInfo as LegacyRuntimeInfo,
+    RuntimeSnapshot as LegacyRuntimeSnapshot,
+    RuntimeState as LegacyRuntimeState,
 )
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     AvailabilityState,
+    CapabilityRecord,
+    CapabilitySupport,
     ChannelEvent,
     ChannelMode,
     ChannelState,
+    EvidenceLevel,
     OutputEvent,
+    RuntimeEvent,
     RuntimeIdentity,
+    RuntimeSnapshot,
     SessionEvent,
     SessionState,
     TurnEvent,
@@ -26,23 +38,30 @@ from agenty.runtime.protocol import (
 )
 
 __all__ = [
-    "InvalidRuntimeTransition",
     "AvailabilityEvent",
+    "AvailabilityMachine",
     "AvailabilityState",
+    "CapabilityRecord",
+    "CapabilitySupport",
     "ChannelEvent",
     "ChannelMode",
     "ChannelState",
+    "EvidenceLevel",
+    "InvalidAvailabilityTransition",
+    "LegacyInvalidRuntimeTransition",
+    "LegacyProbeMachine",
+    "LegacyRuntimeCapability",
+    "LegacyRuntimeEvent",
+    "LegacyRuntimeEventType",
+    "LegacyRuntimeInfo",
+    "LegacyRuntimeSnapshot",
+    "LegacyRuntimeState",
     "OutputEvent",
-    "RuntimeCapability",
     "RuntimeEvent",
-    "RuntimeEventType",
     "RuntimeFailure",
     "RuntimeFailureCode",
-    "RuntimeInfo",
     "RuntimeIdentity",
-    "RuntimeMachine",
     "RuntimeSnapshot",
-    "RuntimeState",
     "SessionEvent",
     "SessionState",
     "TurnEvent",

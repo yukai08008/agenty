@@ -23,6 +23,16 @@ deliverables:
       - RuntimeIdentity / RuntimeEvent / RuntimeSnapshot
   - module: tests/test_runtime_protocol.py
     change: v0.01-a 公共协议合同测试
+  - module: src/agenty/runtime/availability.py
+    change: 由标准 Availability 事件驱动的纯状态机
+    public_api:
+      - AvailabilityMachine / InvalidAvailabilityTransition
+  - module: src/agenty/runtime/protocol.py
+    change: 增加带作用域、证据和约束的 CapabilityRecord
+    public_api:
+      - CapabilityRecord / CapabilitySupport / EvidenceLevel
+  - module: tests/test_availability_machine.py
+    change: v0.01-b Capability 与 Availability 状态合同测试
 
 feature_branches:
   - name: v0.01-a

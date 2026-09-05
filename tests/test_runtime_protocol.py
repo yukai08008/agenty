@@ -85,3 +85,11 @@ def test_public_protocol_has_no_vendor_specific_fields():
 def test_current_baseline_does_not_add_unconfirmed_transition_states():
     assert "cancelling" not in {state.value for state in TurnState}
     assert "deleting" not in {state.value for state in SessionState}
+
+
+def test_package_root_exports_the_new_protocol_snapshot_and_event():
+    from agenty.runtime import RuntimeEvent as ExportedRuntimeEvent
+    from agenty.runtime import RuntimeSnapshot as ExportedRuntimeSnapshot
+
+    assert ExportedRuntimeEvent is RuntimeEvent
+    assert ExportedRuntimeSnapshot is RuntimeSnapshot
