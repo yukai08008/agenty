@@ -44,3 +44,7 @@
 | PC-03 | `--version` 超时 | PC-2 |
 | PC-04 | `--version` 非零退出 | PC-2 |
 | PC-05 | 记录能力来源、版本和通道 | PC-1/PC-3 |
+| PC-06 | 版本格式错误与版本不支持均进入 `INCOMPATIBLE`，并使用不同失败代码 | PC-2 |
+| PC-07 | 版本已确认但 help 探测失败时进入 `DEGRADED` | PC-2/PC-3 |
+| PC-08 | help 参数只形成 `unknown/advertised` 记录 | PC-1/PC-3 |
+| PC-09 | Probe 只调用 `--version` 和 `run --help`，不调用模型 | PC-1 |

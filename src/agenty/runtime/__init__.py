@@ -5,20 +5,7 @@ from agenty.runtime.availability import (
     AvailabilityStateData,
     InvalidAvailabilityTransition,
 )
-from agenty.runtime.machine import (
-    InvalidRuntimeTransition as LegacyInvalidRuntimeTransition,
-)
-from agenty.runtime.machine import RuntimeMachine as LegacyProbeMachine
-from agenty.runtime.models import (
-    RuntimeCapability as LegacyRuntimeCapability,
-    RuntimeEvent as LegacyRuntimeEvent,
-    RuntimeEventType as LegacyRuntimeEventType,
-    RuntimeFailure,
-    RuntimeFailureCode,
-    RuntimeInfo as LegacyRuntimeInfo,
-    RuntimeSnapshot as LegacyRuntimeSnapshot,
-    RuntimeState as LegacyRuntimeState,
-)
+from agenty.runtime.machine import RuntimeProbeMachine
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     AvailabilityState,
@@ -30,6 +17,8 @@ from agenty.runtime.protocol import (
     EvidenceLevel,
     OutputEvent,
     RuntimeEvent,
+    RuntimeFailure,
+    RuntimeFailureCode,
     RuntimeIdentity,
     RuntimeSnapshot,
     SessionEvent,
@@ -50,19 +39,12 @@ __all__ = [
     "ChannelState",
     "EvidenceLevel",
     "InvalidAvailabilityTransition",
-    "LegacyInvalidRuntimeTransition",
-    "LegacyProbeMachine",
-    "LegacyRuntimeCapability",
-    "LegacyRuntimeEvent",
-    "LegacyRuntimeEventType",
-    "LegacyRuntimeInfo",
-    "LegacyRuntimeSnapshot",
-    "LegacyRuntimeState",
     "OutputEvent",
     "RuntimeEvent",
     "RuntimeFailure",
     "RuntimeFailureCode",
     "RuntimeIdentity",
+    "RuntimeProbeMachine",
     "RuntimeSnapshot",
     "SessionEvent",
     "SessionState",

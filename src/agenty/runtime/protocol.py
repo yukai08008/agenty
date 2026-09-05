@@ -68,6 +68,7 @@ class AvailabilityEvent(str, Enum):
     PROBE_STARTED = "probe_started"
     RUNTIME_DETECTED = "runtime_detected"
     RUNTIME_MISSING = "runtime_missing"
+    RUNTIME_UNAVAILABLE = "runtime_unavailable"
     RUNTIME_INCOMPATIBLE = "runtime_incompatible"
     CAPABILITIES_RESOLVED = "capabilities_resolved"
     CAPABILITY_PROBE_FAILED = "capability_probe_failed"
@@ -143,6 +144,15 @@ class EvidenceLevel(str, Enum):
     LIVE_VERIFIED = "live_verified"
 
 
+class RuntimeFailureCode(str, Enum):
+    NOT_FOUND = "runtime_not_found"
+    PROBE_TIMEOUT = "runtime_probe_timeout"
+    PROBE_EXIT = "runtime_probe_exit"
+    INVALID_VERSION = "runtime_invalid_version"
+    UNSUPPORTED_VERSION = "runtime_unsupported_version"
+    INTERNAL = "runtime_internal_error"
+
+
 RuntimeEventName: TypeAlias = (
     AvailabilityEvent | ChannelEvent | SessionEvent | TurnEvent | OutputEvent
 )
@@ -156,6 +166,7 @@ class RuntimeIdentity(BaseModel):
     runtime_id: str
     runtime_kind: str
     runtime_version: str | None = None
+    executable: str | None = None
     channel: ChannelMode | None = None
     endpoint: str | None = None
     process_id: int | None = None
@@ -168,7 +179,7 @@ class RuntimeIdentity(BaseModel):
             raise ValueError("value must not be empty")
         return value
 
-    @field_validator("runtime_version", "endpoint")
+    @field_validator("runtime_version", "executable", "endpoint")
     @classmethod
     def validate_optional_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -240,6 +251,16 @@ class CapabilityRecord(BaseModel):
         )
 
 
+class RuntimeFailure(BaseModel):
+    """Structured failure safe to expose across the runtime boundary."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    code: RuntimeFailureCode
+    message: str
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
 class RuntimeEvent(BaseModel):
     """Normalized fact published across the RuntimeMachine boundary."""
 
@@ -270,6 +291,7 @@ class RuntimeSnapshot(BaseModel):
     session_id: str | None = None
     turn_id: str | None = None
     capabilities: tuple[CapabilityRecord, ...] = Field(default_factory=tuple)
+    failure: RuntimeFailure | None = None
     sequence: int = 0
     observed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)

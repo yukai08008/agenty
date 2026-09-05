@@ -42,6 +42,7 @@ RuntimeMachine
 probe_started
 runtime_detected
 runtime_missing
+runtime_unavailable
 runtime_incompatible
 capabilities_resolved
 capability_probe_failed
@@ -50,6 +51,8 @@ runtime_recovered
 runtime_lost
 runtime_closed
 ```
+
+`runtime_missing` 表示找不到可执行文件；`runtime_unavailable` 表示可执行入口已解析，但探测命令无法启动、超时或非零退出。两者都进入 `UNAVAILABLE`，失败原因由结构化 `RuntimeFailure` 保留。
 
 ## 2. ChannelMachine
 

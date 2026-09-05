@@ -1,24 +1,40 @@
-"""Adapter boundary used by RuntimeMachine."""
+"""Provider-neutral adapter boundary for runtime probing."""
 
 from __future__ import annotations
 
 from typing import Protocol
 
-from agenty.runtime.models import RuntimeFailure, RuntimeInfo
+from agenty.runtime.protocol import (
+    AvailabilityEvent,
+    CapabilityRecord,
+    RuntimeFailure,
+    RuntimeIdentity,
+)
 
 
 class RuntimeAdapterError(RuntimeError):
-    def __init__(self, failure: RuntimeFailure):
+    def __init__(
+        self,
+        event: AvailabilityEvent,
+        failure: RuntimeFailure,
+    ) -> None:
+        self.event = event
         self.failure = failure
         super().__init__(failure.message)
 
 
 class RuntimeAdapter(Protocol):
-    """Smallest adapter contract needed by the first Runtime slice."""
+    """Runtime-specific observations used by the generic probe machine."""
 
     @property
-    def runtime_id(self) -> str:
+    def identity(self) -> RuntimeIdentity:
         ...
 
-    def probe(self) -> RuntimeInfo:
+    def detect(self) -> RuntimeIdentity:
+        ...
+
+    def probe_capabilities(
+        self,
+        runtime: RuntimeIdentity,
+    ) -> tuple[CapabilityRecord, ...]:
         ...

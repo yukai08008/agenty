@@ -9,6 +9,7 @@ from agenty.runtime.protocol import (
     AvailabilityState,
     CapabilityRecord,
     RuntimeEvent,
+    RuntimeFailure,
     RuntimeIdentity,
     RuntimeSnapshot,
 )
@@ -46,6 +47,9 @@ _TRANSITIONS = {
     (AvailabilityState.PROBING, AvailabilityEvent.RUNTIME_MISSING): (
         AvailabilityState.UNAVAILABLE
     ),
+    (AvailabilityState.PROBING, AvailabilityEvent.RUNTIME_UNAVAILABLE): (
+        AvailabilityState.UNAVAILABLE
+    ),
     (AvailabilityState.PROBING, AvailabilityEvent.RUNTIME_INCOMPATIBLE): (
         AvailabilityState.INCOMPATIBLE
     ),
@@ -72,6 +76,7 @@ class AvailabilityStateData(BaseModel):
     runtime: RuntimeIdentity
     state: AvailabilityState = AvailabilityState.UNKNOWN
     capabilities: tuple[CapabilityRecord, ...] = Field(default_factory=tuple)
+    failure: RuntimeFailure | None = None
     events: list[RuntimeEvent] = Field(default_factory=list)
     runtime_detected: bool = False
 
@@ -106,6 +111,10 @@ class AvailabilityMachine:
         return self._data.capabilities
 
     @property
+    def failure(self) -> RuntimeFailure | None:
+        return self._data.failure
+
+    @property
     def events(self) -> tuple[RuntimeEvent, ...]:
         return tuple(self._data.events)
 
@@ -138,6 +147,7 @@ class AvailabilityMachine:
             runtime=self.runtime,
             availability=self.state,
             capabilities=self.capabilities,
+            failure=self.failure,
             sequence=len(self._data.events),
         )
 
@@ -166,6 +176,7 @@ class AvailabilityMachine:
     def _apply_event_data(self, event: RuntimeEvent) -> None:
         if event.name is AvailabilityEvent.PROBE_STARTED:
             self._data.capabilities = ()
+            self._data.failure = None
             self._data.runtime_detected = False
             return
 
@@ -191,3 +202,16 @@ class AvailabilityMachine:
                         "capability belongs to another runtime or channel"
                     )
             self._data.capabilities = tuple(records)
+
+        if event.name in {
+            AvailabilityEvent.RUNTIME_MISSING,
+            AvailabilityEvent.RUNTIME_UNAVAILABLE,
+            AvailabilityEvent.RUNTIME_INCOMPATIBLE,
+            AvailabilityEvent.CAPABILITY_PROBE_FAILED,
+        }:
+            failure = event.payload.get("failure")
+            if not isinstance(failure, RuntimeFailure):
+                raise InvalidAvailabilityTransition(
+                    "failure event requires a RuntimeFailure payload"
+                )
+            self._data.failure = failure

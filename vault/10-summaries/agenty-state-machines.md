@@ -19,7 +19,7 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 ## Current state
 
 - M1 目标是创建第一个可运行 Agent Anna。
-- 旧 OpenCode Probe 原型可识别本机 OpenCode 1.18.26，但仍使用 `READY` 和帮助参数能力集合；这些能力只能视为 advertised，迁移尚未完成。
+- v0.01-c 已将 OpenCode Probe 迁移到公共 AvailabilityMachine：通用编排与版本绑定 Adapter 分离，失败结构化，help 参数只形成 `unknown/advertised` 能力记录。本机 OpenCode 1.18.26 无模型探测结果为 `AVAILABLE`。
 - 第一次顶层校准确定 AgentyMachine 使用 `RESOLVING_RUNTIME` 消费公共 RuntimeSnapshot，并通过 capability 守卫接受或阻断。
 - OpenCode 1.18.26 的能力分析表明 RuntimeMachine 应聚合 Availability、Channel、Session、Turn 四个状态机；能力必须绑定版本、通道和证据等级。
 - v0.01-a 已把 Runtime 状态与事件基线落成中立公共协议；四类状态独立，事件带关联上下文，快照只读聚合，尚未实现运行行为。

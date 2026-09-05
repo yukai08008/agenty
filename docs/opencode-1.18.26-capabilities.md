@@ -168,3 +168,22 @@ Agenty Agent（产品身份与长期状态）
 ```
 
 不能只保存 `OpenCode.supports_sessions = true`。
+
+## 9. v0.01-c Probe 实现边界
+
+当前 Probe 固定适配 OpenCode 1.18.26，并只执行：
+
+```text
+opencode --version
+opencode run --help
+```
+
+本机实测结果为 `AVAILABLE`。从 help 发现的 model、variant、session、continue、fork、interactive、format 和 file 参数，被映射为 8 条中立 CapabilityRecord；所有记录均为：
+
+```text
+support: unknown
+evidence: advertised
+channel: transient_process
+```
+
+这说明 Runtime 宣传了相应入口，不代表 Agenty 已验证其调用语义。真实 Session、Turn、模型及 effort 操作留给后续版本。

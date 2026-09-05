@@ -1,85 +1,103 @@
-"""Event-driven outer lifecycle for one runtime installation."""
+"""Generic orchestration for a side-effect-free runtime probe."""
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from agenty.runtime.adapters import RuntimeAdapter, RuntimeAdapterError
-from agenty.runtime.models import (
+from agenty.runtime.availability import AvailabilityMachine
+from agenty.runtime.protocol import (
+    AvailabilityEvent,
     RuntimeEvent,
-    RuntimeEventType,
     RuntimeFailure,
     RuntimeFailureCode,
-    RuntimeInfo,
+    RuntimeIdentity,
     RuntimeSnapshot,
-    RuntimeState,
 )
 
 
-class InvalidRuntimeTransition(RuntimeError):
-    pass
+class RuntimeProbeMachine:
+    """Drive AvailabilityMachine while an adapter gathers observations."""
 
-
-_TRANSITIONS = {
-    (RuntimeState.UNKNOWN, RuntimeEventType.PROBE_REQUESTED): RuntimeState.PROBING,
-    (RuntimeState.UNAVAILABLE, RuntimeEventType.PROBE_REQUESTED): RuntimeState.PROBING,
-    (RuntimeState.DEGRADED, RuntimeEventType.PROBE_REQUESTED): RuntimeState.PROBING,
-    (RuntimeState.READY, RuntimeEventType.PROBE_REQUESTED): RuntimeState.PROBING,
-    (RuntimeState.PROBING, RuntimeEventType.PROBE_SUCCEEDED): RuntimeState.READY,
-    (RuntimeState.PROBING, RuntimeEventType.PROBE_FAILED): RuntimeState.UNAVAILABLE,
-    (RuntimeState.READY, RuntimeEventType.FAULT_DETECTED): RuntimeState.DEGRADED,
-}
-
-
-class RuntimeMachine:
     def __init__(self, adapter: RuntimeAdapter) -> None:
         self.adapter = adapter
-        self.state = RuntimeState.UNKNOWN
-        self.info: RuntimeInfo | None = None
-        self.failure: RuntimeFailure | None = None
-        self._events: list[RuntimeEvent] = []
+        self.availability = AvailabilityMachine(adapter.identity)
 
-    def send(self, event_type: RuntimeEventType) -> RuntimeState:
-        if event_type == RuntimeEventType.CLOSE_REQUESTED:
-            if self.state == RuntimeState.CLOSED:
-                raise InvalidRuntimeTransition("runtime is already closed")
-            next_state = RuntimeState.CLOSED
-        else:
-            next_state = _TRANSITIONS.get((self.state, event_type))
-            if next_state is None:
-                raise InvalidRuntimeTransition(
-                    f"cannot send {event_type.value!r} from {self.state.value!r}"
-                )
-
-        previous = self.state
-        self.state = next_state
-        self._events.append(
-            RuntimeEvent(type=event_type, from_state=previous, to_state=next_state)
+    def probe(self, correlation_id: str | None = None) -> RuntimeSnapshot:
+        correlation_id = correlation_id or str(uuid4())
+        self._apply(
+            AvailabilityEvent.PROBE_STARTED,
+            self.adapter.identity,
+            correlation_id,
         )
-        return next_state
 
-    def probe(self) -> RuntimeSnapshot:
-        self.send(RuntimeEventType.PROBE_REQUESTED)
-        self.info = None
-        self.failure = None
         try:
-            self.info = self.adapter.probe()
+            runtime = self.adapter.detect()
         except RuntimeAdapterError as exc:
-            self.failure = exc.failure
-            self.send(RuntimeEventType.PROBE_FAILED)
-        except Exception as exc:  # protect the public state boundary
-            self.failure = RuntimeFailure(
-                code=RuntimeFailureCode.INTERNAL,
-                message="runtime probe raised an unexpected error",
-                details={"error_type": type(exc).__name__, "error": str(exc)},
+            self._apply(exc.event, self.adapter.identity, correlation_id, exc.failure)
+            return self.snapshot()
+        except Exception as exc:
+            self._apply(
+                AvailabilityEvent.RUNTIME_UNAVAILABLE,
+                self.adapter.identity,
+                correlation_id,
+                RuntimeFailure(
+                    code=RuntimeFailureCode.INTERNAL,
+                    message="runtime detection raised an unexpected error",
+                    details={"error_type": type(exc).__name__, "error": str(exc)},
+                ),
             )
-            self.send(RuntimeEventType.PROBE_FAILED)
+            return self.snapshot()
+
+        self._apply(AvailabilityEvent.RUNTIME_DETECTED, runtime, correlation_id)
+
+        try:
+            capabilities = self.adapter.probe_capabilities(runtime)
+        except RuntimeAdapterError as exc:
+            self._apply(
+                AvailabilityEvent.CAPABILITY_PROBE_FAILED,
+                runtime,
+                correlation_id,
+                exc.failure,
+            )
+        except Exception as exc:
+            self._apply(
+                AvailabilityEvent.CAPABILITY_PROBE_FAILED,
+                runtime,
+                correlation_id,
+                RuntimeFailure(
+                    code=RuntimeFailureCode.INTERNAL,
+                    message="capability probe raised an unexpected error",
+                    details={"error_type": type(exc).__name__, "error": str(exc)},
+                ),
+            )
         else:
-            self.send(RuntimeEventType.PROBE_SUCCEEDED)
+            self.availability.apply(
+                RuntimeEvent(
+                    name=AvailabilityEvent.CAPABILITIES_RESOLVED,
+                    runtime=runtime,
+                    correlation_id=correlation_id,
+                    payload={"capabilities": capabilities},
+                )
+            )
         return self.snapshot()
 
     def snapshot(self) -> RuntimeSnapshot:
-        return RuntimeSnapshot(
-            state=self.state,
-            info=self.info,
-            failure=self.failure,
-            events=tuple(self._events),
+        return self.availability.snapshot()
+
+    def _apply(
+        self,
+        name: AvailabilityEvent,
+        runtime: RuntimeIdentity,
+        correlation_id: str,
+        failure: RuntimeFailure | None = None,
+    ) -> None:
+        payload = {"failure": failure} if failure is not None else {}
+        self.availability.apply(
+            RuntimeEvent(
+                name=name,
+                runtime=runtime,
+                correlation_id=correlation_id,
+                payload=payload,
+            )
         )

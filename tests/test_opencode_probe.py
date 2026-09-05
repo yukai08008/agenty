@@ -1,13 +1,14 @@
 import sys
 from pathlib import Path
 
-from agenty.runtime.machine import RuntimeMachine
-from agenty.runtime.models import (
-    RuntimeCapability,
-    RuntimeFailureCode,
-    RuntimeState,
-)
+from agenty.runtime.machine import RuntimeProbeMachine
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
+from agenty.runtime.protocol import (
+    AvailabilityState,
+    CapabilitySupport,
+    EvidenceLevel,
+    RuntimeFailureCode,
+)
 
 
 HELP_TEXT = """Options:
@@ -25,109 +26,132 @@ HELP_TEXT = """Options:
 def fake_opencode(
     tmp_path: Path,
     version: str = "1.18.26",
-    exit_code: int = 0,
+    version_exit: int = 0,
+    help_exit: int = 0,
     help_to_stderr: bool = False,
     delay: float = 0,
 ):
     path = tmp_path / "opencode"
+    log_path = tmp_path / "calls.log"
     path.write_text(
         f"#!{sys.executable}\n"
-        "import sys, time\n"
+        "import pathlib, sys, time\n"
         f"VERSION = {version!r}\n"
         f"HELP = {HELP_TEXT!r}\n"
+        f"LOG = pathlib.Path({str(log_path)!r})\n"
+        "with LOG.open('a') as stream:\n"
+        "    stream.write(' '.join(sys.argv[1:]) + '\\n')\n"
         f"time.sleep({delay!r})\n"
-        f"HELP_TO_STDERR = {help_to_stderr!r}\n"
         "if '--version' in sys.argv:\n"
         "    print(VERSION)\n"
-        "else:\n"
-        "    print(HELP, file=sys.stderr if HELP_TO_STDERR else sys.stdout)\n"
-        f"raise SystemExit({exit_code})\n"
+        f"    raise SystemExit({version_exit})\n"
+        f"print(HELP, file=sys.stderr if {help_to_stderr!r} else sys.stdout)\n"
+        f"raise SystemExit({help_exit})\n"
     )
     path.chmod(0o755)
-    return path
+    return path, log_path
 
 
-def test_probe_reads_version_and_capabilities_without_running_a_model(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(str(fake_opencode(tmp_path)))
+def test_probe_reports_version_and_advertised_capabilities_without_model(tmp_path):
+    executable, log_path = fake_opencode(tmp_path)
 
-    snapshot = RuntimeMachine(adapter).probe()
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
 
-    assert snapshot.state == RuntimeState.READY
-    assert snapshot.info is not None
-    assert snapshot.info.version == "1.18.26"
-    assert RuntimeCapability.MODELS in snapshot.info.capabilities
-    assert RuntimeCapability.EFFORT_LEVELS in snapshot.info.capabilities
-    assert RuntimeCapability.SESSIONS in snapshot.info.capabilities
-    assert RuntimeCapability.STRUCTURED_OUTPUT in snapshot.info.capabilities
-    assert snapshot.info.evidence["capability_source"] == "opencode run --help"
+    assert snapshot.availability is AvailabilityState.AVAILABLE
+    assert snapshot.runtime.runtime_kind == "opencode"
+    assert snapshot.runtime.runtime_version == "1.18.26"
+    assert snapshot.runtime.executable == str(executable.resolve())
+    capabilities = {record.capability: record for record in snapshot.capabilities}
+    assert capabilities["model.selection"].support is CapabilitySupport.UNKNOWN
+    assert capabilities["model.selection"].evidence is EvidenceLevel.ADVERTISED
+    assert capabilities["session.fork"].constraints == (
+        "requires --continue or --session",
+    )
+    assert log_path.read_text().splitlines() == ["--version", "run --help"]
 
 
 def test_missing_opencode_is_unavailable(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(str(tmp_path / "missing"))
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(tmp_path / "missing"))
+    ).probe()
 
-    snapshot = RuntimeMachine(adapter).probe()
-
-    assert snapshot.state == RuntimeState.UNAVAILABLE
+    assert snapshot.availability is AvailabilityState.UNAVAILABLE
     assert snapshot.failure is not None
-    assert snapshot.failure.code == RuntimeFailureCode.NOT_FOUND
+    assert snapshot.failure.code is RuntimeFailureCode.NOT_FOUND
 
 
 def test_probe_accepts_successful_help_written_to_stderr(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(
-        str(fake_opencode(tmp_path, help_to_stderr=True))
+    executable, _ = fake_opencode(tmp_path, help_to_stderr=True)
+
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
+
+    assert snapshot.availability is AvailabilityState.AVAILABLE
+    assert any(
+        record.capability == "session.resume_by_id"
+        for record in snapshot.capabilities
     )
 
-    snapshot = RuntimeMachine(adapter).probe()
 
-    assert snapshot.info is not None
-    assert RuntimeCapability.SESSIONS in snapshot.info.capabilities
+def test_invalid_version_is_incompatible(tmp_path):
+    executable, _ = fake_opencode(tmp_path, version="development")
 
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
 
-def test_invalid_version_is_unavailable(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(str(fake_opencode(tmp_path, "development")))
-
-    snapshot = RuntimeMachine(adapter).probe()
-
-    assert snapshot.state == RuntimeState.UNAVAILABLE
+    assert snapshot.availability is AvailabilityState.INCOMPATIBLE
     assert snapshot.failure is not None
-    assert snapshot.failure.code == RuntimeFailureCode.INVALID_VERSION
+    assert snapshot.failure.code is RuntimeFailureCode.INVALID_VERSION
 
 
-def test_nonzero_probe_exit_is_unavailable(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(str(fake_opencode(tmp_path, exit_code=9)))
+def test_valid_but_unsupported_version_is_incompatible(tmp_path):
+    executable, _ = fake_opencode(tmp_path, version="1.18.27")
 
-    snapshot = RuntimeMachine(adapter).probe()
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
 
-    assert snapshot.state == RuntimeState.UNAVAILABLE
+    assert snapshot.availability is AvailabilityState.INCOMPATIBLE
     assert snapshot.failure is not None
-    assert snapshot.failure.code == RuntimeFailureCode.PROBE_EXIT
+    assert snapshot.failure.code is RuntimeFailureCode.UNSUPPORTED_VERSION
+
+
+def test_nonzero_version_probe_is_unavailable(tmp_path):
+    executable, _ = fake_opencode(tmp_path, version_exit=9)
+
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
+
+    assert snapshot.availability is AvailabilityState.UNAVAILABLE
+    assert snapshot.failure is not None
+    assert snapshot.failure.code is RuntimeFailureCode.PROBE_EXIT
 
 
 def test_probe_timeout_is_unavailable(tmp_path):
-    adapter = OpenCodeRuntimeAdapter(
-        str(fake_opencode(tmp_path, delay=1)), timeout_seconds=0.01
-    )
+    executable, _ = fake_opencode(tmp_path, delay=1)
 
-    snapshot = RuntimeMachine(adapter).probe()
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable), timeout_seconds=0.01)
+    ).probe()
 
-    assert snapshot.state == RuntimeState.UNAVAILABLE
+    assert snapshot.availability is AvailabilityState.UNAVAILABLE
     assert snapshot.failure is not None
-    assert snapshot.failure.code == RuntimeFailureCode.PROBE_TIMEOUT
+    assert snapshot.failure.code is RuntimeFailureCode.PROBE_TIMEOUT
 
 
-def test_public_runtime_models_have_no_vendor_specific_fields():
-    from agenty.runtime import models
+def test_capability_probe_failure_is_degraded(tmp_path):
+    executable, _ = fake_opencode(tmp_path, help_exit=9)
 
-    public_models = [
-        models.RuntimeFailure,
-        models.RuntimeInfo,
-        models.RuntimeEvent,
-        models.RuntimeSnapshot,
-    ]
-    field_names = {
-        name.lower()
-        for model in public_models
-        for name in model.model_fields
-    }
+    snapshot = RuntimeProbeMachine(
+        OpenCodeRuntimeAdapter(str(executable))
+    ).probe()
 
-    assert not field_names & {"opencode", "codex", "claude", "variant"}
+    assert snapshot.availability is AvailabilityState.DEGRADED
+    assert snapshot.runtime.runtime_version == "1.18.26"
+    assert snapshot.failure is not None
+    assert snapshot.failure.code is RuntimeFailureCode.PROBE_EXIT

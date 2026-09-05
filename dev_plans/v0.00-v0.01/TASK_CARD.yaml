@@ -34,6 +34,16 @@ deliverables:
       - CapabilityRecord / CapabilitySupport / EvidenceLevel
   - module: tests/test_availability_machine.py
     change: v0.01-b Capability 与 Availability 状态合同测试
+  - module: src/agenty/runtime/machine.py
+    change: 编排公共 Availability 事件的通用无副作用 Probe
+    public_api:
+      - RuntimeProbeMachine
+  - module: src/agenty/runtime/opencode.py
+    change: 与 OpenCode 1.18.26 绑定的发现和 help 能力适配
+    public_api:
+      - OpenCodeRuntimeAdapter
+  - module: tests/test_opencode_probe.py
+    change: v0.01-c 版本、失败分类、证据边界和无模型调用测试
 
 feature_branches:
   - name: v0.01-a
@@ -71,8 +81,8 @@ risk_register:
     mitigation: v0.01-a 明确排除 CANCELLING 和 DELETING
     severity: medium
   - id: R3
-    risk: 旧 Probe 原型与新协议暂时并存
-    mitigation: v0.01-b 统一迁移 Availability 和 Snapshot
+    risk: Probe 把帮助参数误报为已经验证的能力
+    mitigation: v0.01-c 统一迁移到 CapabilityRecord，help 记录保持 unknown/advertised
     severity: medium
   - id: R4
     risk: 状态数据使用 dataclass 导致跨边界校验和持久化合同不一致

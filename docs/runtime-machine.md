@@ -235,12 +235,17 @@ constraint: permission requests are auto-rejected unless --auto
 
 ## 11. 当前实现与设计差距
 
-旧 probe 原型仍只返回 capability 名称集合，会把“帮助中存在某参数”误当成“行为已验证”。v0.01-b 已完成公共 Capability 模型和纯 AvailabilityMachine；v0.01-c 负责迁移 OpenCode Probe：
+v0.01-c 已将 OpenCode 1.18.26 Probe 迁移到公共协议：
 
-1. 将旧 `RuntimeMachine.READY` 迁移为新 `AvailabilityMachine.AVAILABLE`。
-2. 将不支持的版本映射到 `INCOMPATIBLE`。
-3. 将帮助参数转换为 `advertised` 证据，而不是已验证行为。
-4. 不再仅凭 `--interactive` 参数声明交互窗口已验证。
+1. 通用 `RuntimeProbeMachine` 只负责编排公共 Availability 事件，OpenCode 细节留在独立 Adapter。
+2. 缺失、命令不可用、版本格式错误和版本不受支持具有不同的结构化失败代码。
+3. 版本通过后、能力探测失败时进入 `DEGRADED`，保留已经确认的 Runtime 身份。
+4. `--help` 中出现的参数只生成 `support=unknown`、`evidence=advertised` 的记录。
+5. 探测只执行 `opencode --version` 和 `opencode run --help`，不调用模型、不创建 Session。
+
+本机 OpenCode 1.18.26 已真实通过该无副作用探测，结果为 `AVAILABLE`，并发现 8 条 advertised 能力记录。
+
+尚未实现 Channel、Session、Turn 的运行行为，也尚未验证模型切换、effort、Session 恢复或分叉的实际效果；这些不能由本版本的 help 探测推导。
 
 ## 12. 不变量
 

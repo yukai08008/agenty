@@ -13,6 +13,8 @@ from agenty.runtime.protocol import (
     ChannelMode,
     EvidenceLevel,
     RuntimeEvent,
+    RuntimeFailure,
+    RuntimeFailureCode,
     RuntimeIdentity,
     TurnEvent,
 )
@@ -83,9 +85,27 @@ def test_missing_and_incompatible_are_distinct(result, expected):
     machine = AvailabilityMachine(identity)
 
     machine.apply(event(AvailabilityEvent.PROBE_STARTED, identity))
-    machine.apply(event(result, identity))
+    failure_code = (
+        RuntimeFailureCode.NOT_FOUND
+        if result is AvailabilityEvent.RUNTIME_MISSING
+        else RuntimeFailureCode.UNSUPPORTED_VERSION
+    )
+    machine.apply(
+        event(
+            result,
+            identity,
+            {
+                "failure": RuntimeFailure(
+                    code=failure_code,
+                    message="runtime probe failed",
+                )
+            },
+        )
+    )
 
     assert machine.state is expected
+    assert machine.failure is not None
+    assert machine.failure.code is failure_code
 
 
 def test_partial_capability_probe_is_degraded():
@@ -95,10 +115,20 @@ def test_partial_capability_probe_is_degraded():
     machine.apply(event(AvailabilityEvent.PROBE_STARTED, runtime()))
     machine.apply(event(AvailabilityEvent.RUNTIME_DETECTED, detected))
     machine.apply(
-        event(AvailabilityEvent.CAPABILITY_PROBE_FAILED, detected)
+        event(
+            AvailabilityEvent.CAPABILITY_PROBE_FAILED,
+            detected,
+            {
+                "failure": RuntimeFailure(
+                    code=RuntimeFailureCode.PROBE_EXIT,
+                    message="capability probe failed",
+                )
+            },
+        )
     )
 
     assert machine.state is AvailabilityState.DEGRADED
+    assert machine.failure is not None
 
 
 def test_capability_result_requires_runtime_detection():

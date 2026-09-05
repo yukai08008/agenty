@@ -25,8 +25,15 @@
   - Runtime 协议模型与 AvailabilityStateData 已对齐 andybot，迁移为 Pydantic v2
   - **issue-pydantic-state-models** (CLOSED)：早期 dataclass 模型不符合项目约束，已迁移并增加 JSON 往返恢复测试
   - 质量门：30 项 pytest 通过、compileall 通过、diff check 通过、data 未被 Git 追踪
-- **v0.01-c OpenCode 1.18.26 Probe**（待创建）
-  - **issue-capability-evidence-scope** (FOUND)：旧 Probe 尚未迁移到新 CapabilityRecord，帮助参数仍由旧模型直接视为能力
+- **v0.01-c OpenCode 1.18.26 Probe** (CODE_COMPLETE)
+  - 分支：`v0.01-c`
+  - 通用 RuntimeProbeMachine 与版本绑定的 OpenCode Adapter 已分离
+  - 失败已区分缺失、探测超时、命令退出、版本格式错误、版本不支持和内部异常
+  - help 参数只形成 `support=unknown / evidence=advertised` 的能力记录
+  - 本机 OpenCode 1.18.26 无模型探测结果为 `AVAILABLE`，发现 8 条 advertised 能力
+  - **issue-capability-evidence-scope** (CLOSED)：旧 capability 集合与旧 RuntimeMachine 已移除
+  - 质量门：30 项 pytest 通过、真实无副作用 probe 通过、data 未被 Git 追踪
+  - 工具缺口：项目未安装 ruff，未形成 lint 结论
 
 ## 历史分支
 
@@ -35,7 +42,7 @@
 
 ## 当前焦点
 
-- 验收 v0.01-b 能力边界；确认后进入 v0.01-c，将 OpenCode Probe 迁移到新协议。
+- 验收 v0.01-c Probe 边界；确认后再决定配置或 Session 的下一切片。
 
 ## 已确认的后续设计约束
 
@@ -56,7 +63,7 @@
 - [x] v0.01-a：落地 Runtime 公共协议和合同测试
 - [x] v0.01-b：落地 capability 的版本、通道、证据模型和 AvailabilityMachine
 - [x] 修复状态模型实现约束：统一为 Pydantic v2
-- [ ] 将 OpenCode Probe 迁移到 v0.01-b 公共模型
+- [x] 将 OpenCode Probe 迁移到 v0.01-b 公共模型
 - [ ] 再推进 OpenCode 配置与会话切片
 
 ## 不变量

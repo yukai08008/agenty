@@ -1,4 +1,4 @@
-"""OpenCode implementation of the Runtime adapter probe contract."""
+"""Version-bound OpenCode runtime probe adapter."""
 
 from __future__ import annotations
 
@@ -8,60 +8,137 @@ import subprocess
 from pathlib import Path
 
 from agenty.runtime.adapters import RuntimeAdapterError
-from agenty.runtime.models import (
-    RuntimeCapability,
+from agenty.runtime.protocol import (
+    AvailabilityEvent,
+    CapabilityRecord,
+    CapabilitySupport,
+    ChannelMode,
+    EvidenceLevel,
     RuntimeFailure,
     RuntimeFailureCode,
-    RuntimeInfo,
+    RuntimeIdentity,
 )
 
 
 _VERSION = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?\b")
+_SUPPORTED_VERSIONS = frozenset({"1.18.26"})
+
+_OPTION_CAPABILITIES = {
+    "--model": "model.selection",
+    "--variant": "effort.selection",
+    "--session": "session.resume_by_id",
+    "--continue": "session.resume_latest",
+    "--fork": "session.fork",
+    "--interactive": "channel.interactive_window",
+    "--format": "output.structured",
+    "--file": "input.attachments",
+}
+
+
+class _ProbeCommandError(RuntimeError):
+    def __init__(self, failure: RuntimeFailure) -> None:
+        self.failure = failure
+        super().__init__(failure.message)
 
 
 class OpenCodeRuntimeAdapter:
-    def __init__(self, executable: str = "opencode", timeout_seconds: float = 5):
+    def __init__(
+        self,
+        executable: str = "opencode",
+        timeout_seconds: float = 5,
+        supported_versions: frozenset[str] | None = None,
+    ) -> None:
         self.executable = executable
         self.timeout_seconds = timeout_seconds
+        self.supported_versions = supported_versions or _SUPPORTED_VERSIONS
 
     @property
-    def runtime_id(self) -> str:
-        return "opencode"
+    def identity(self) -> RuntimeIdentity:
+        return RuntimeIdentity(
+            runtime_id="local-opencode",
+            runtime_kind="opencode",
+            channel=ChannelMode.TRANSIENT_PROCESS,
+        )
 
-    def probe(self) -> RuntimeInfo:
+    def detect(self) -> RuntimeIdentity:
         executable = self._resolve_executable()
         if executable is None:
             raise RuntimeAdapterError(
+                AvailabilityEvent.RUNTIME_MISSING,
                 RuntimeFailure(
                     code=RuntimeFailureCode.NOT_FOUND,
                     message=f"runtime executable not found: {self.executable}",
-                )
+                ),
             )
 
-        version_output = self._run_probe(executable, "--version")
+        try:
+            version_output = self._run_probe(executable, "--version")
+        except _ProbeCommandError as exc:
+            raise RuntimeAdapterError(
+                AvailabilityEvent.RUNTIME_UNAVAILABLE,
+                exc.failure,
+            ) from exc
+
         match = _VERSION.search(version_output)
         if match is None:
             raise RuntimeAdapterError(
+                AvailabilityEvent.RUNTIME_INCOMPATIBLE,
                 RuntimeFailure(
                     code=RuntimeFailureCode.INVALID_VERSION,
                     message="OpenCode returned an unrecognized version",
                     details={"output": version_output.strip()},
-                )
+                ),
             )
 
-        run_help = self._run_probe(executable, "run", "--help")
-        capabilities = self._capabilities_from_help(run_help)
-        return RuntimeInfo(
-            runtime_id=self.runtime_id,
-            kind="opencode",
-            version=match.group(0),
-            executable=executable,
-            capabilities=frozenset(capabilities),
-            evidence={
-                "version": version_output.strip(),
-                "capability_source": "opencode run --help",
-            },
+        version = match.group(0)
+        if version not in self.supported_versions:
+            raise RuntimeAdapterError(
+                AvailabilityEvent.RUNTIME_INCOMPATIBLE,
+                RuntimeFailure(
+                    code=RuntimeFailureCode.UNSUPPORTED_VERSION,
+                    message=f"unsupported OpenCode version: {version}",
+                    details={"supported_versions": sorted(self.supported_versions)},
+                ),
+            )
+
+        return self.identity.model_copy(
+            update={"runtime_version": version, "executable": executable}
         )
+
+    def probe_capabilities(
+        self,
+        runtime: RuntimeIdentity,
+    ) -> tuple[CapabilityRecord, ...]:
+        if runtime.runtime_kind != "opencode" or runtime.executable is None:
+            raise ValueError("OpenCode capability probe requires detected identity")
+        try:
+            run_help = self._run_probe(runtime.executable, "run", "--help")
+        except _ProbeCommandError as exc:
+            raise RuntimeAdapterError(
+                AvailabilityEvent.CAPABILITY_PROBE_FAILED,
+                exc.failure,
+            ) from exc
+
+        records = []
+        for option, capability in _OPTION_CAPABILITIES.items():
+            if option not in run_help:
+                continue
+            constraints = ()
+            if option == "--fork":
+                constraints = ("requires --continue or --session",)
+            elif option == "--interactive":
+                constraints = ("advertised only; integration behavior unverified",)
+            records.append(
+                CapabilityRecord(
+                    capability=capability,
+                    runtime=runtime,
+                    support=CapabilitySupport.UNKNOWN,
+                    evidence=EvidenceLevel.ADVERTISED,
+                    evidence_source="opencode run --help",
+                    constraints=constraints,
+                )
+            )
+        return tuple(records)
 
     def _resolve_executable(self) -> str | None:
         candidate = Path(self.executable).expanduser()
@@ -79,7 +156,7 @@ class OpenCodeRuntimeAdapter:
                 check=False,
             )
         except subprocess.TimeoutExpired as exc:
-            raise RuntimeAdapterError(
+            raise _ProbeCommandError(
                 RuntimeFailure(
                     code=RuntimeFailureCode.PROBE_TIMEOUT,
                     message="OpenCode probe timed out",
@@ -87,7 +164,7 @@ class OpenCodeRuntimeAdapter:
                 )
             ) from exc
         except OSError as exc:
-            raise RuntimeAdapterError(
+            raise _ProbeCommandError(
                 RuntimeFailure(
                     code=RuntimeFailureCode.PROBE_EXIT,
                     message="OpenCode probe could not start",
@@ -96,7 +173,7 @@ class OpenCodeRuntimeAdapter:
             ) from exc
 
         if result.returncode != 0:
-            raise RuntimeAdapterError(
+            raise _ProbeCommandError(
                 RuntimeFailure(
                     code=RuntimeFailureCode.PROBE_EXIT,
                     message="OpenCode probe exited unsuccessfully",
@@ -106,25 +183,6 @@ class OpenCodeRuntimeAdapter:
                     },
                 )
             )
-        # OpenCode 1.18.x writes command help to stderr even with exit code 0.
-        # Both streams are therefore evidence; neither is treated as failure by
-        # itself when the process succeeded.
-        return "\n".join(part for part in (result.stdout, result.stderr) if part)
-
-    @staticmethod
-    def _capabilities_from_help(help_text: str) -> set[RuntimeCapability]:
-        option_capabilities = {
-            "--model": RuntimeCapability.MODELS,
-            "--variant": RuntimeCapability.EFFORT_LEVELS,
-            "--session": RuntimeCapability.SESSIONS,
-            "--continue": RuntimeCapability.RESUME,
-            "--fork": RuntimeCapability.FORK,
-            "--interactive": RuntimeCapability.INTERACTIVE_WINDOW,
-            "--format": RuntimeCapability.STRUCTURED_OUTPUT,
-            "--file": RuntimeCapability.ATTACHMENTS,
-        }
-        return {
-            capability
-            for option, capability in option_capabilities.items()
-            if option in help_text
-        }
+        return "\n".join(
+            part for part in (result.stdout, result.stderr) if part
+        )
