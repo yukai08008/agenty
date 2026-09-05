@@ -9,6 +9,11 @@ dependencies = [
     "questionary>=2.0.0",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
 [project.scripts]
 agenty = "agenty.cli:main"
 
