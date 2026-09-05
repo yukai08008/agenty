@@ -31,6 +31,12 @@
 
 - 验收 v0.01-a 能力边界；确认后进入 v0.01-b。
 
+## 已确认的后续设计约束
+
+- 原生 Runtime Session fork 不足以表示完整执行分支。
+- 执行分支必须同时锁定 Runtime Session lineage 和项目 Environment。
+- 后续协议需要明确 `Env → Action(strategy) → Env' → Reward`，具体实现与版本排期尚未决定。
+
 ## 待办
 
 - [x] 确认 AgentyMachine 与 RuntimeMachine 独立协作

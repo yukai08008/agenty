@@ -94,6 +94,8 @@ stateDiagram-v2
 
 Session 是 Runtime 内部的对话历史容器，不等同于 Agenty Agent。
 
+Session fork 也不等同于完整的 Agenty 执行分支。执行分支还必须绑定项目环境，需求基线见 [执行分支上下文需求](execution-branch-context.md)。
+
 ```mermaid
 stateDiagram-v2
     [*] --> NONE
