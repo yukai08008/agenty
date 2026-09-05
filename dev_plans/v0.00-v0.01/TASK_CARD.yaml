@@ -2,7 +2,7 @@ milestone: M1-Anna
 version: v0.01
 parent_final: null
 bootstrap_base: "9876fda"
-title: Runtime Machine 与 OpenCode 底层适配
+title: Runtime 接入基线
 type: api
 prd: dev_plans/v0.00-v0.01/PRD.md
 test_cases: dev_plans/v0.00-v0.01/TEST_CASES.md
@@ -14,19 +14,58 @@ invariants:
   - "自动测试不调用真实模型"
   - "运行时数据不在 git 追踪中"
 
+deliverables:
+  - module: src/agenty/runtime/protocol.py
+    change: 定义 Runtime 公共状态、事件外壳、标识和聚合快照
+    public_api:
+      - AvailabilityState / ChannelState / SessionState / TurnState
+      - AvailabilityEvent / ChannelEvent / SessionEvent / TurnEvent / OutputEvent
+      - RuntimeIdentity / RuntimeEvent / RuntimeSnapshot
+  - module: tests/test_runtime_protocol.py
+    change: v0.01-a 公共协议合同测试
+
 feature_branches:
-  - name: feature/runtime-machine-opencode
-    title: Runtime 公共模型和 OpenCode 分层适配
+  - name: v0.01-a
+    title: Runtime 公共协议
     deps: []
     acceptance:
-      - "RM-1 Runtime 状态转移由事件驱动"
-      - "RM-2 公共能力模型可表达 Runtime 差异"
-      - "OC-1 probe 不调用模型即可报告版本与能力"
-      - "OC-2 缺失或异常 OpenCode 进入明确状态"
-      - "AR-1 probe 结果足以供未来 AgentyMachine 决策"
+      - "PA-1 四个子状态机拥有相互独立的状态类型"
+      - "PA-2 标准事件能够携带 Runtime、关联、Session 和 Turn 上下文"
+      - "PA-3 RuntimeSnapshot 不把四类状态压成一个组合枚举"
+      - "PA-4 公共协议不存在 Runtime 厂商专属字段"
+  - name: v0.01-b
+    title: Capability 与 AvailabilityMachine
+    deps: [v0.01-a]
+    acceptance:
+      - "PB-1 Availability 状态与已确认协议一致"
+      - "PB-2 Capability 绑定版本、通道、证据和约束"
+  - name: v0.01-c
+    title: OpenCode 1.18.26 Probe
+    deps: [v0.01-b]
+    acceptance:
+      - "PC-1 probe 不调用模型即可报告版本和带证据能力"
+      - "PC-2 缺失、异常或不兼容 OpenCode 进入明确状态"
+      - "PC-3 输出足以供未来 AgentyMachine 决策的 RuntimeSnapshot"
+
+acceptance_count: 9
+
+risk_register:
+  - id: R1
+    risk: 公共协议被 OpenCode 专属概念污染
+    mitigation: 厂商字段合同测试
+    severity: high
+  - id: R2
+    risk: 过早把未确认的过渡状态固化进协议
+    mitigation: v0.01-a 明确排除 CANCELLING 和 DELETING
+    severity: medium
+  - id: R3
+    risk: 旧 Probe 原型与新协议暂时并存
+    mitigation: v0.01-b 统一迁移 Availability 和 Snapshot
+    severity: medium
 
 git_workflow:
-  branch_creation: from bootstrap base 9876fda
+  branch_creation: v0.01-a continues from pre-split feature baseline 8784a82
+  feature_order: v0.01-a, v0.01-b, v0.01-c
   merge_policy: --no-ff
   before_merge_checks:
     - "pytest all PASS"

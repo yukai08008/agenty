@@ -1,8 +1,12 @@
 # RuntimeMachine 状态与事件清单
 
-> 状态：讨论基线，尚未定稿  
-> 首个校验对象：OpenCode 1.18.26  
+> 状态：v0.01-a 公共协议实现基线，待验收
+>
+> 首个校验对象：OpenCode 1.18.26
+>
 > 范围：只列 RuntimeMachine 的状态和事件，不展开命令、数据结构和实现。
+
+对应代码位于 `src/agenty/runtime/protocol.py`。该模块只定义公共事实，不启动 Runtime，也不执行状态转移。
 
 RuntimeMachine 由四个相互独立、存在协作关系的子状态机组成：
 
@@ -187,4 +191,3 @@ runtime_error_emitted
 - 删除 Session 是否需要独立的 `DELETING` 状态，还是作为关闭原因记录。
 - `FAILED` 是否允许重试，重试时复用对象还是创建新对象。
 - 输出事件的最小公共集合及事件粒度。
-

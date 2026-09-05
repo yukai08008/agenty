@@ -9,30 +9,34 @@
 | INV-03 | 自动测试不调用真实模型 | 是 |
 | INV-04 | `git ls-files data/` 结果为空 | 是 |
 
-## 1. Runtime 公共模型
+## 1. v0.01-a Runtime 公共协议
 
 | ID | 用例 | 验收 |
 |---|---|---|
-| RM-01 | 初始状态为 `UNKNOWN` | RM-1 |
-| RM-02 | `probe` 进入 `PROBING` | RM-1 |
-| RM-03 | 成功探测进入 `READY` | RM-1 |
-| RM-04 | 探测失败进入 `UNAVAILABLE` | RM-1 |
-| RM-05 | 非法事件被拒绝且状态不变 | RM-1 |
-| RM-06 | capability 不支持时明确拒绝 | RM-2 |
+| PA-01 | Availability、Channel、Session、Turn 使用独立状态类型 | PA-1 |
+| PA-02 | RuntimeEvent 携带 Runtime 和 correlation ID | PA-2 |
+| PA-03 | RuntimeEvent 可选携带 Session 和 Turn ID | PA-2 |
+| PA-04 | RuntimeSnapshot 同时表达四类独立状态 | PA-3 |
+| PA-05 | 所有公共事件名称全局唯一 | PA-2 |
+| PA-06 | 公共协议不存在厂商专属字段 | PA-4 |
+| PA-07 | 未确认的 `CANCELLING/DELETING` 不进入当前基线 | PA-1 |
 
-## 2. OpenCode Probe
-
-| ID | 用例 | 验收 |
-|---|---|---|
-| OC-01 | 找到假 OpenCode 并解析版本 | OC-1 |
-| OC-02 | 找不到可执行文件 | OC-2 |
-| OC-03 | `--version` 超时 | OC-2 |
-| OC-04 | `--version` 非零退出 | OC-2 |
-| OC-05 | 记录能力来源和版本 | OC-1/AR-1 |
-
-## 3. 顶层校准
+## 2. v0.01-b Capability 与 AvailabilityMachine
 
 | ID | 用例 | 验收 |
 |---|---|---|
-| AR-01 | READY 能触发未来的 runtime 可选事件 | AR-1 |
-| AR-02 | UNAVAILABLE 能携带可展示的结构化原因 | AR-1 |
+| PB-01 | 初始状态为 `UNKNOWN` | PB-1 |
+| PB-02 | 探测过程进入 `PROBING` | PB-1 |
+| PB-03 | 成功探测进入 `AVAILABLE` | PB-1 |
+| PB-04 | 缺失和不兼容使用不同状态 | PB-1 |
+| PB-05 | Capability 记录版本、通道、证据和约束 | PB-2 |
+
+## 3. v0.01-c OpenCode Probe
+
+| ID | 用例 | 验收 |
+|---|---|---|
+| PC-01 | 找到假 OpenCode 并解析版本 | PC-1 |
+| PC-02 | 找不到可执行文件 | PC-2 |
+| PC-03 | `--version` 超时 | PC-2 |
+| PC-04 | `--version` 非零退出 | PC-2 |
+| PC-05 | 记录能力来源、版本和通道 | PC-1/PC-3 |

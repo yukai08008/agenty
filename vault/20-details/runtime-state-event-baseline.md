@@ -1,7 +1,7 @@
 ---
 id: runtime-state-event-baseline
 type: decision
-status: draft
+status: active
 updated: 2026-09-05
 tags: [agenty, runtime, state-machine, events]
 part_of:
@@ -18,7 +18,9 @@ related:
 
 RuntimeMachine 暂按 Availability、Channel、Session、Turn 四个子状态机讨论。状态与事件清单的项目文档是 `docs/runtime-states-events.md`。
 
-该清单目前是讨论基线而非最终协议。下一步按子状态机逐项确认，不同时扩展 Command、数据结构或实现。
+v0.01-a 已将该清单实现为 `src/agenty/runtime/protocol.py`：四类状态保持独立，标准事件通过 RuntimeEvent 携带 Runtime、correlation、Session 和 Turn 上下文，RuntimeSnapshot 只做只读聚合。
+
+该基线仍可在版本内调整，但 v0.01-a 不实现状态转移、Capability、Runtime 调用、Session 或 Turn 行为。合同测试和全量测试共 15 项通过。
 
 ## Open questions
 

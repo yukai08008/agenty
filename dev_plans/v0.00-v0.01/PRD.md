@@ -1,4 +1,4 @@
-# v0.01 PRD — Runtime Machine 与 OpenCode 底层适配
+# v0.01 PRD — Runtime 接入基线
 
 > 里程碑：M1 Anna
 > 父版本：无 final tag；初始化基线 `main@9876fda`
@@ -8,24 +8,27 @@
 
 ## 0. 一句话目标
 
-建立独立于 AgentyMachine 的 RuntimeMachine 公共模型，并以 OpenCode 为例从无副作用探测开始逐步验证协议。
+建立独立于 AgentyMachine 的 Runtime 公共协议，并以 OpenCode 1.18.26 的无副作用探测验证第一段接入边界。
 
 ## 1. 范围
 
 ### 1.1 In-scope
 
-- Runtime、Session、Execution 三层生命周期模型。
-- 公共命令、事件、能力和错误模型。
-- OpenCode 可执行文件、版本与能力探测。
-- OpenCode 配置、会话和 JSON 执行的后续切片设计。
+- Availability、Channel、Session、Turn 四类相互独立的公共状态。
+- Runtime 公共事件名称、事件外壳、标识和聚合快照。
+- 带版本、通道、证据等级和约束的 Capability 模型。
+- OpenCode 1.18.26 可执行文件、版本与能力的无副作用探测。
 - 公共合同测试和不调用真实模型的适配器测试。
-- 每完成一个底层切片，回到 AgentyMachine 做协议校准。
 
 ### 1.2 Out-of-scope
 
 - Anna 的创建和加载。
 - 共享记忆、技能和根目录完整能力。
 - Codex、Claude 具体实现。
+- Channel 启动、连接和重连。
+- 模型和 effort 的应用。
+- Session 创建、恢复、导入和分叉。
+- Turn 执行、审批和 JSON 事件流。
 - 多 Agent 编排。
 - 自研推理循环。
 
@@ -38,31 +41,26 @@
 - 测试默认不调用真实模型。
 - 运行时数据不进入 Git。
 
-## 3. 交付切片
+## 3. Feature 切分
 
-### A. Runtime 公共模型
+### v0.01-a Runtime 公共协议
 
-- 定义状态、事件、能力、错误和关联 ID。
-- 定义 RuntimeAdapter 最小协议。
+- 定义四类公共状态和标准事件名称。
+- 定义 Runtime 标识、事件外壳和只读聚合快照。
+- 不实现状态转移，不调用任何 Runtime。
 
-### B. OpenCode Probe
+### v0.01-b Capability 与 AvailabilityMachine
+
+- 修正现有 Availability 状态和转移。
+- 定义带版本、通道、证据和约束的 Capability 记录。
+- 解决 `issue-capability-evidence-scope`。
+
+### v0.01-c OpenCode 1.18.26 Probe
 
 - 查找可执行文件。
 - 读取版本。
-- 探测或声明可验证能力。
-- 驱动 `UNKNOWN → PROBING → READY/UNAVAILABLE`。
-
-### C. 顶层协议校准
-
-- 用 probe 结果验证 AgentyMachine 如何选择 Runtime、等待和处理不可用。
-- 只调整协议，不实现完整 AgentyMachine。
-
-### D. 后续底层切片
-
-- 配置模型和 effort。
-- 打开、恢复、分叉会话。
-- 执行并归一化 JSON 事件。
-- 中断、超时、审批和关闭。
+- 探测带证据的能力。
+- 驱动 AvailabilityMachine 并输出 RuntimeSnapshot。
 
 每个切片单独验收，不能以“能够启动进程”代替 RuntimeMachine 完成。
 
