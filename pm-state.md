@@ -17,7 +17,7 @@
   - 顶层切片 1：AgentyMachine `RESOLVING_RUNTIME` 协议校准（完成设计）
   - 底层设计 2：基于 OpenCode 1.18.26 完成功能抽象与 Runtime 聚合状态机设计
   - **issue-capability-evidence-scope** (FOUND)：现有 probe 将帮助参数直接视为已验证能力，缺少版本、通道、证据等级和约束
-  - 当前切片：等待确认聚合状态机，再修正 capability 模型
+  - 当前切片：已落地 Runtime 状态与事件讨论基线，等待逐项确认；尚未修改实现
 
 ## 历史分支
 
@@ -25,7 +25,7 @@
 
 ## 当前焦点
 
-- 确认 RuntimeMachine 的 Availability/Channel/Session/Turn 四部分设计。
+- 逐项确认 RuntimeMachine 的状态与事件清单，暂不扩展 Command 和实现。
 
 ## 待办
 

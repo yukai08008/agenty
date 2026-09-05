@@ -1,5 +1,7 @@
 # Runtime Machine 设计
 
+> 状态和事件的独立讨论基线见 [RuntimeMachine 状态与事件清单](runtime-states-events.md)。
+
 ## 1. 定位
 
 RuntimeMachine 是一个聚合状态机。它管理某个明确的 `Runtime + 版本`，并通过具体接入通道控制配置、Session 和 Turn。
