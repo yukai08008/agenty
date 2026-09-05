@@ -206,3 +206,21 @@ opencode run --format json --dir <working_directory> [--model ...] [--variant ..
 - Session ID 从 JSON 事件建立，同一 Turn 内改变时拒绝继续。
 
 上述结论目前属于假可执行文件集成测试，不提升为 `live_verified`。真实模型冒烟测试属于 v0.03-c，必须显式开启。
+
+## 11. v0.03-c 真实冒烟证据
+
+2026-09-06 在本机 OpenCode 1.18.26 上显式运行真实测试：
+
+- `opencode/mimo-v2.5-free`：成功创建 Session 并收到结构化 error，provider 返回 HTTP 429 免费额度限流；Turn 正确进入 `FAILED`。
+- `opencode/nemotron-3.5-lightning-free`：成功创建 Session `ses_f8d7e04baffetMP6TmhgpvgrA8`，返回预期文本，Turn 进入 `SUCCEEDED`，约 7.4 秒完成。
+- 工作目录为 `/Users/andy/mycode/agenty`，调用前后没有出现 Runtime 造成的项目文件修改。
+
+本次 live 证据只确认以下组合：OpenCode 1.18.26、`transient_process`、新 Session、显式 model、结构化 JSON、Session ID、文本输出和成功/错误终态。它不证明 effort、resume、fork、工具修改或交互审批可用。
+
+复现成功冒烟测试：
+
+```bash
+AGENTY_LIVE_OPENCODE=1 uv run pytest tests/test_opencode_live.py -q
+```
+
+默认 live 模型固定为本次成功的 `opencode/nemotron-3.5-lightning-free`，也可通过 `AGENTY_LIVE_OPENCODE_MODEL` 显式覆盖。

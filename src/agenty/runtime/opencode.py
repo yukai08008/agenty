@@ -234,7 +234,7 @@ class OpenCodeRuntimeAdapter:
                 RuntimeFailure(
                     code=RuntimeFailureCode.TURN_FAILED,
                     message="OpenCode reported a runtime error",
-                    details={"error": self._error_text(runtime_error)},
+                    details=self._error_details(runtime_error),
                 )
             )
         if process.returncode != 0:
@@ -366,7 +366,7 @@ class OpenCodeRuntimeAdapter:
             if isinstance(part, dict) and isinstance(part.get("tool"), str):
                 payload["tool"] = part["tool"]
         if name is OutputEvent.RUNTIME_ERROR_EMITTED:
-            payload["message"] = self._error_text(raw)
+            payload.update(self._error_details(raw))
         return RuntimeEvent(
             name=name,
             runtime=runtime,
@@ -387,14 +387,31 @@ class OpenCodeRuntimeAdapter:
         )
 
     def _error_text(self, raw: dict) -> str:
+        return self._error_details(raw)["message"]
+
+    def _error_details(self, raw: dict) -> dict:
         error = raw.get("error")
         if isinstance(error, str):
-            return error
+            return {"message": error}
         if isinstance(error, dict):
-            for key in ("message", "name"):
-                if isinstance(error.get(key), str):
-                    return error[key]
-        return "OpenCode runtime error"
+            data = error.get("data")
+            details = {}
+            if isinstance(error.get("name"), str):
+                details["error_type"] = error["name"]
+            if isinstance(data, dict):
+                if isinstance(data.get("message"), str):
+                    details["message"] = data["message"]
+                if isinstance(data.get("statusCode"), int):
+                    details["status_code"] = data["statusCode"]
+                if isinstance(data.get("isRetryable"), bool):
+                    details["retryable"] = data["isRetryable"]
+            if "message" not in details and isinstance(error.get("message"), str):
+                details["message"] = error["message"]
+            if "message" not in details and "error_type" in details:
+                details["message"] = details["error_type"]
+            if details:
+                return details
+        return {"message": "OpenCode runtime error"}
 
     def _turn_event(
         self,

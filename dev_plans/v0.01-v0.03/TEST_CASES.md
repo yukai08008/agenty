@@ -40,3 +40,5 @@
 | PC-01 | 未设置 live 开关时跳过 | PC-1 | 是 |
 | PC-02 | 显式开启后完成一次最小真实 Turn | PC-2 | 条件执行 |
 | PC-03 | 证据只对应实际 Runtime 版本、通道和能力 | PC-3 | 条件执行 |
+
+2026-09-06 验证：PC-01 默认跳过；PC-02 使用 `opencode/nemotron-3.5-lightning-free` 通过；PC-03 的范围记录在 `docs/opencode-1.18.26-capabilities.md`，未扩大到 effort、resume、fork 或审批。

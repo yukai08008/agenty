@@ -39,7 +39,14 @@ def fake_opencode(
             {
                 "type": "error",
                 "sessionID": "session-1",
-                "error": {"message": "model failed"},
+                "error": {
+                    "name": "APIError",
+                    "data": {
+                        "message": "model failed",
+                        "statusCode": 429,
+                        "isRetryable": True,
+                    },
+                },
             }
         ]
     executable.write_text(
@@ -146,6 +153,12 @@ def test_runtime_error_event_fails_turn(tmp_path):
     assert result.state is TurnState.FAILED
     assert result.failure is not None
     assert result.failure.code is RuntimeFailureCode.TURN_FAILED
+    assert result.failure.details == {
+        "error_type": "APIError",
+        "message": "model failed",
+        "status_code": 429,
+        "retryable": True,
+    }
     assert any(
         event.name is OutputEvent.RUNTIME_ERROR_EMITTED
         for event in result.events

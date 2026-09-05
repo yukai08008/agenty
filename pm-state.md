@@ -35,7 +35,7 @@
   - 质量门：30 项 pytest 通过、真实无副作用 probe 通过、data 未被 Git 追踪
   - 工具缺口：项目未安装 ruff，未形成 lint 结论
 
-### v0.03 (ACTIVE) — Runtime 最小 Turn 调用链
+### v0.03 (CODE_COMPLETE) — Runtime 最小 Turn 调用链
 
 - 父基线：`v0.01-c@80be93f`；v0.01 为不发布的 API 迭代，因此没有 final tag
 - 跳过 v0.02：本阶段是协议和后端行为，不属于偶数 Web 版
@@ -54,7 +54,15 @@
   - 成功、Runtime error、tool error、非零退出、畸形 JSON、超时与目录缺失均有自动测试
   - 质量门：55 项 pytest、compileall、diff check、vault strict 全部通过；data 未被 Git 追踪
   - 真实模型尚未调用；项目仍未安装 ruff
-- **v0.03-c 显式真实模型冒烟测试** (PLANNED)
+- **v0.03-c 显式真实模型冒烟测试** (CODE_COMPLETE)
+  - 分支：`v0.03-c`
+  - 默认测试保持 skip，只有 `AGENTY_LIVE_OPENCODE=1` 才调用真实模型
+  - `opencode/mimo-v2.5-free` 真实返回 HTTP 429，调用链正确记录 Session 和结构化失败
+  - `opencode/nemotron-3.5-lightning-free` 真实调用成功，Session 为 `ses_f8d7e04baffetMP6TmhgpvgrA8`
+  - live 验证覆盖新 Session、model、JSON、Session ID、文本输出和终态，不扩展到 effort/resume/fork
+  - 真实 error 回归推动 Adapter 保留 message、status code 和 retryable，过滤 headers/body
+  - 质量门：默认套件 55 passed / 1 live skipped；显式 live case 1 passed；compileall、diff check、vault strict 通过
+  - 项目仍未安装 ruff
 
 ## 历史分支
 
@@ -63,7 +71,7 @@
 
 ## 当前焦点
 
-- 验收 v0.03-b 假 Runtime 调用链；确认后进入 v0.03-c 显式真实模型冒烟测试。
+- v0.03 调用链已贯通；下一步回到 AgentyMachine 顶层，校准它如何提交 RuntimeTurnRequest 和消费 Turn 结果。
 
 ## 已确认的后续设计约束
 
@@ -88,7 +96,7 @@
 - [ ] 再推进 OpenCode 配置与会话切片
 - [x] v0.03-a：实现公共 Turn 请求、状态数据和状态机
 - [x] v0.03-b：实现 OpenCode JSON 调用适配
-- [ ] v0.03-c：增加显式开启的真实模型冒烟测试
+- [x] v0.03-c：增加显式开启的真实模型冒烟测试
 
 ## 不变量
 
