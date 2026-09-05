@@ -127,7 +127,7 @@ def test_public_runtime_models_have_no_vendor_specific_fields():
     field_names = {
         name.lower()
         for model in public_models
-        for name in model.__dataclass_fields__
+        for name in model.model_fields
     }
 
     assert not field_names & {"opencode", "codex", "claude", "variant"}

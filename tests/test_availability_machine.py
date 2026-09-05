@@ -2,6 +2,7 @@ import pytest
 
 from agenty.runtime.availability import (
     AvailabilityMachine,
+    AvailabilityStateData,
     InvalidAvailabilityTransition,
 )
 from agenty.runtime.protocol import (
@@ -128,7 +129,7 @@ def test_wrong_domain_or_runtime_is_rejected_without_mutation():
         machine.apply(
             event(
                 AvailabilityEvent.PROBE_STARTED,
-                RuntimeIdentity("other", "fake"),
+                RuntimeIdentity(runtime_id="other", runtime_kind="fake"),
             )
         )
 
@@ -150,8 +151,16 @@ def test_conditional_capability_requires_constraints():
 @pytest.mark.parametrize(
     "identity",
     [
-        RuntimeIdentity("runtime", "fake", channel=ChannelMode.TRANSIENT_PROCESS),
-        RuntimeIdentity("runtime", "fake", "1.2.3"),
+        RuntimeIdentity(
+            runtime_id="runtime",
+            runtime_kind="fake",
+            channel=ChannelMode.TRANSIENT_PROCESS,
+        ),
+        RuntimeIdentity(
+            runtime_id="runtime",
+            runtime_kind="fake",
+            runtime_version="1.2.3",
+        ),
     ],
 )
 def test_capability_requires_version_and_channel(identity):
@@ -191,3 +200,21 @@ def test_capability_key_is_scoped_by_runtime_version_and_channel():
         ChannelMode.TRANSIENT_PROCESS,
         "session.fork",
     )
+
+
+def test_availability_state_data_round_trips_and_restores_machine():
+    identity = runtime("1.2.3")
+    machine = AvailabilityMachine(identity)
+    machine.apply(event(AvailabilityEvent.PROBE_STARTED, identity))
+    machine.apply(event(AvailabilityEvent.RUNTIME_DETECTED, identity))
+    machine.apply(
+        event(AvailabilityEvent.CAPABILITIES_RESOLVED, identity)
+    )
+
+    restored_data = AvailabilityStateData.model_validate_json(
+        machine.data.model_dump_json()
+    )
+    restored_machine = AvailabilityMachine(restored_data.runtime, restored_data)
+
+    assert restored_machine.state is AvailabilityState.AVAILABLE
+    assert restored_machine.snapshot().sequence == 3

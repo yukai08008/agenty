@@ -8,6 +8,8 @@
 
 对应代码位于 `src/agenty/runtime/protocol.py`。该模块只定义公共事实，不启动 Runtime，也不执行状态转移。
 
+与 andybot 保持一致：状态继续使用字符串 Enum；需要校验、跨边界传输或持久化的 Identity、Event、Snapshot 和 StateData 使用 Pydantic v2 BaseModel；Machine 执行器本身保持普通 Python 对象。
+
 RuntimeMachine 由四个相互独立、存在协作关系的子状态机组成：
 
 ```text

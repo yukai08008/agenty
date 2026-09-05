@@ -31,6 +31,6 @@ OpenCode 1.18.26 同时提供本地 run、attach、HTTP server、ACP 和交互�
 
 ## Implementation
 
-v0.01-b 已用标准库 dataclass 实现 `CapabilityRecord`、`CapabilitySupport`、`EvidenceLevel` 和纯 `AvailabilityMachine`。支持状态与证据等级分开表达；`conditional` 必须附带约束。
+v0.01-b 已用 Pydantic v2 BaseModel 实现 `CapabilityRecord`、`CapabilitySupport`、`EvidenceLevel` 和 `AvailabilityStateData`。支持状态与证据等级分开表达；`conditional` 必须附带约束。状态数据支持 JSON dump/validate 往返恢复，Machine 执行器保持普通 Python 对象。
 
 OpenCode Probe 仍使用旧 capability 集合，迁移属于 v0.01-c，当前不能把模型完成误报为适配完成。

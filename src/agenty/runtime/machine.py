@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from agenty.runtime.adapters import RuntimeAdapter, RuntimeAdapterError
 from agenty.runtime.models import (
     RuntimeEvent,
@@ -31,11 +29,9 @@ _TRANSITIONS = {
 }
 
 
-@dataclass
 class RuntimeMachine:
-    adapter: RuntimeAdapter
-
-    def __post_init__(self) -> None:
+    def __init__(self, adapter: RuntimeAdapter) -> None:
+        self.adapter = adapter
         self.state = RuntimeState.UNKNOWN
         self.info: RuntimeInfo | None = None
         self.failure: RuntimeFailure | None = None

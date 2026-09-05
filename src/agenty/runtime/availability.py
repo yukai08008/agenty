@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict, Field
 
 from agenty.runtime.protocol import (
     AvailabilityEvent,
@@ -64,19 +64,50 @@ _TRANSITIONS = {
 }
 
 
-@dataclass
-class AvailabilityMachine:
-    runtime: RuntimeIdentity
+class AvailabilityStateData(BaseModel):
+    """Validated and serializable state owned by AvailabilityMachine."""
 
-    def __post_init__(self) -> None:
-        self.state = AvailabilityState.UNKNOWN
-        self.capabilities: tuple[CapabilityRecord, ...] = ()
-        self._events: list[RuntimeEvent] = []
-        self._runtime_detected = False
+    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+
+    runtime: RuntimeIdentity
+    state: AvailabilityState = AvailabilityState.UNKNOWN
+    capabilities: tuple[CapabilityRecord, ...] = Field(default_factory=tuple)
+    events: list[RuntimeEvent] = Field(default_factory=list)
+    runtime_detected: bool = False
+
+
+class AvailabilityMachine:
+    def __init__(
+        self,
+        runtime: RuntimeIdentity,
+        state_data: AvailabilityStateData | None = None,
+    ) -> None:
+        if state_data is not None and (
+            state_data.runtime.runtime_id != runtime.runtime_id
+            or state_data.runtime.runtime_kind != runtime.runtime_kind
+        ):
+            raise ValueError("state data belongs to another runtime")
+        self._data = state_data or AvailabilityStateData(runtime=runtime)
+
+    @property
+    def data(self) -> AvailabilityStateData:
+        return self._data
+
+    @property
+    def runtime(self) -> RuntimeIdentity:
+        return self._data.runtime
+
+    @property
+    def state(self) -> AvailabilityState:
+        return self._data.state
+
+    @property
+    def capabilities(self) -> tuple[CapabilityRecord, ...]:
+        return self._data.capabilities
 
     @property
     def events(self) -> tuple[RuntimeEvent, ...]:
-        return tuple(self._events)
+        return tuple(self._data.events)
 
     def apply(self, event: RuntimeEvent) -> AvailabilityState:
         if not isinstance(event.name, AvailabilityEvent):
@@ -98,8 +129,8 @@ class AvailabilityMachine:
 
         self._validate_event_context(event)
         self._apply_event_data(event)
-        self.state = next_state
-        self._events.append(event)
+        self._data.state = next_state
+        self._data.events.append(event)
         return self.state
 
     def snapshot(self) -> RuntimeSnapshot:
@@ -107,7 +138,7 @@ class AvailabilityMachine:
             runtime=self.runtime,
             availability=self.state,
             capabilities=self.capabilities,
-            sequence=len(self._events),
+            sequence=len(self._data.events),
         )
 
     def _validate_runtime(self, runtime: RuntimeIdentity) -> None:
@@ -127,20 +158,20 @@ class AvailabilityMachine:
         if event.name in {
             AvailabilityEvent.CAPABILITIES_RESOLVED,
             AvailabilityEvent.CAPABILITY_PROBE_FAILED,
-        } and not self._runtime_detected:
+        } and not self._data.runtime_detected:
             raise InvalidAvailabilityTransition(
                 "capability result requires runtime_detected first"
             )
 
     def _apply_event_data(self, event: RuntimeEvent) -> None:
         if event.name is AvailabilityEvent.PROBE_STARTED:
-            self.capabilities = ()
-            self._runtime_detected = False
+            self._data.capabilities = ()
+            self._data.runtime_detected = False
             return
 
         if event.name is AvailabilityEvent.RUNTIME_DETECTED:
-            self.runtime = event.runtime
-            self._runtime_detected = True
+            self._data.runtime = event.runtime
+            self._data.runtime_detected = True
             return
 
         if event.name in {
@@ -159,5 +190,4 @@ class AvailabilityMachine:
                     raise InvalidAvailabilityTransition(
                         "capability belongs to another runtime or channel"
                     )
-            self.capabilities = tuple(records)
-
+            self._data.capabilities = tuple(records)

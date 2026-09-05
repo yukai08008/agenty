@@ -218,7 +218,9 @@ RuntimeCapabilityRecord
   constraints
 ```
 
-v0.01-b 使用标准库 dataclass 实现该记录，代码位于 `src/agenty/runtime/protocol.py`。`conditional` 必须附带约束，除 `unknown` 外的支持声明必须有证据。
+v0.01-b 使用 Pydantic v2 BaseModel 实现该记录，代码位于 `src/agenty/runtime/protocol.py`。`conditional` 必须附带约束，除 `unknown` 外的支持声明必须有证据。
+
+状态数据遵循 andybot 的边界：Enum 表达状态，Pydantic 模型负责校验、序列化和恢复，Machine 负责转移及运行时行为。
 
 例如：
 

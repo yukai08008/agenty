@@ -6,10 +6,11 @@ start a runtime, apply transitions, or contain vendor-specific configuration.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Mapping, TypeAlias
+from typing import Any, TypeAlias
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AvailabilityState(str, Enum):
@@ -147,9 +148,10 @@ RuntimeEventName: TypeAlias = (
 )
 
 
-@dataclass(frozen=True)
-class RuntimeIdentity:
+class RuntimeIdentity(BaseModel):
     """Identity and transport coordinates for one runtime instance."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     runtime_id: str
     runtime_kind: str
@@ -158,10 +160,36 @@ class RuntimeIdentity:
     endpoint: str | None = None
     process_id: int | None = None
 
+    @field_validator("runtime_id", "runtime_kind")
+    @classmethod
+    def validate_required_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
 
-@dataclass(frozen=True)
-class CapabilityRecord:
+    @field_validator("runtime_version", "endpoint")
+    @classmethod
+    def validate_optional_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @field_validator("process_id")
+    @classmethod
+    def validate_process_id(cls, value: int | None) -> int | None:
+        if value is not None and value <= 0:
+            raise ValueError("process_id must be positive")
+        return value
+
+
+class CapabilityRecord(BaseModel):
     """Version- and channel-scoped capability claim with evidence."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     capability: str
     runtime: RuntimeIdentity
@@ -170,9 +198,16 @@ class CapabilityRecord:
     evidence_source: str | None = None
     constraints: tuple[str, ...] = ()
 
-    def __post_init__(self) -> None:
-        if not self.capability.strip():
+    @field_validator("capability")
+    @classmethod
+    def validate_capability(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
             raise ValueError("capability must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_claim(self) -> "CapabilityRecord":
         if not self.runtime.runtime_version:
             raise ValueError("capability requires a runtime version")
         if self.runtime.channel is None:
@@ -189,6 +224,7 @@ class CapabilityRecord:
             and not self.constraints
         ):
             raise ValueError("conditional support requires constraints")
+        return self
 
     @property
     def key(self) -> tuple[str, str, ChannelMode, str]:
@@ -204,25 +240,27 @@ class CapabilityRecord:
         )
 
 
-@dataclass(frozen=True)
-class RuntimeEvent:
+class RuntimeEvent(BaseModel):
     """Normalized fact published across the RuntimeMachine boundary."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     name: RuntimeEventName
     runtime: RuntimeIdentity
     correlation_id: str
     session_id: str | None = None
     turn_id: str | None = None
-    timestamp: datetime = field(
+    timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-    payload: Mapping[str, object] = field(default_factory=dict)
-    raw_event: object | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+    raw_event: Any | None = None
 
 
-@dataclass(frozen=True)
-class RuntimeSnapshot:
+class RuntimeSnapshot(BaseModel):
     """Read-only aggregate view; child machine states remain independent."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
 
     runtime: RuntimeIdentity
     availability: AvailabilityState = AvailabilityState.UNKNOWN
@@ -231,9 +269,8 @@ class RuntimeSnapshot:
     turn: TurnState | None = None
     session_id: str | None = None
     turn_id: str | None = None
-    capabilities: tuple[CapabilityRecord, ...] = ()
+    capabilities: tuple[CapabilityRecord, ...] = Field(default_factory=tuple)
     sequence: int = 0
-    observed_at: datetime = field(
+    observed_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
-

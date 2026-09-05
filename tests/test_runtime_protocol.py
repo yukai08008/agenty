@@ -1,4 +1,5 @@
-from dataclasses import fields
+import pytest
+from pydantic import BaseModel, ValidationError
 
 from agenty.runtime.protocol import (
     AvailabilityEvent,
@@ -41,7 +42,11 @@ def test_runtime_snapshot_keeps_child_machine_states_independent():
 
 
 def test_normalized_event_carries_runtime_and_correlation_context():
-    runtime = RuntimeIdentity("local-opencode", "opencode", "1.18.26")
+    runtime = RuntimeIdentity(
+        runtime_id="local-opencode",
+        runtime_kind="opencode",
+        runtime_version="1.18.26",
+    )
 
     event = RuntimeEvent(
         name=TurnEvent.TURN_ACCEPTED,
@@ -74,12 +79,41 @@ def test_public_event_names_are_unique_across_domains():
 def test_public_protocol_has_no_vendor_specific_fields():
     public_models = (RuntimeIdentity, RuntimeEvent, RuntimeSnapshot)
     field_names = {
-        field.name.lower()
+        field_name.lower()
         for model in public_models
-        for field in fields(model)
+        for field_name in model.model_fields
     }
 
     assert not field_names & {"opencode", "codex", "claude", "variant"}
+
+
+def test_public_protocol_models_use_pydantic_and_round_trip_json():
+    public_models = (RuntimeIdentity, RuntimeEvent, RuntimeSnapshot)
+    assert all(issubclass(model, BaseModel) for model in public_models)
+
+    snapshot = RuntimeSnapshot(
+        runtime=RuntimeIdentity(
+            runtime_id="local-runtime",
+            runtime_kind="fake",
+            runtime_version="1.2.3",
+            channel=ChannelMode.TRANSIENT_PROCESS,
+        ),
+        availability=AvailabilityState.AVAILABLE,
+    )
+
+    restored = RuntimeSnapshot.model_validate_json(snapshot.model_dump_json())
+    assert restored == snapshot
+
+
+def test_public_protocol_rejects_unknown_fields():
+    with pytest.raises(ValidationError, match="vendor_option"):
+        RuntimeIdentity.model_validate(
+            {
+                "runtime_id": "local-runtime",
+                "runtime_kind": "fake",
+                "vendor_option": True,
+            }
+        )
 
 
 def test_current_baseline_does_not_add_unconfirmed_transition_states():

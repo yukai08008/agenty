@@ -2,6 +2,7 @@
 
 from agenty.runtime.availability import (
     AvailabilityMachine,
+    AvailabilityStateData,
     InvalidAvailabilityTransition,
 )
 from agenty.runtime.machine import (
@@ -41,6 +42,7 @@ __all__ = [
     "AvailabilityEvent",
     "AvailabilityMachine",
     "AvailabilityState",
+    "AvailabilityStateData",
     "CapabilityRecord",
     "CapabilitySupport",
     "ChannelEvent",

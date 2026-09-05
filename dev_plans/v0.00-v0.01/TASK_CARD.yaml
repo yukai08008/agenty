@@ -10,6 +10,7 @@ test_cases: dev_plans/v0.00-v0.01/TEST_CASES.md
 invariants:
   - "RuntimeMachine 与 AgentyMachine 只通过命令和事件协作"
   - "公共模型不包含 OpenCode 专属参数"
+  - "跨边界和可持久化状态数据使用 Pydantic v2"
   - "默认不启用自动批准"
   - "自动测试不调用真实模型"
   - "运行时数据不在 git 追踪中"
@@ -49,6 +50,7 @@ feature_branches:
     acceptance:
       - "PB-1 Availability 状态与已确认协议一致"
       - "PB-2 Capability 绑定版本、通道、证据和约束"
+      - "PB-3 Runtime 协议与 AvailabilityStateData 可校验并 JSON 往返恢复"
   - name: v0.01-c
     title: OpenCode 1.18.26 Probe
     deps: [v0.01-b]
@@ -57,7 +59,7 @@ feature_branches:
       - "PC-2 缺失、异常或不兼容 OpenCode 进入明确状态"
       - "PC-3 输出足以供未来 AgentyMachine 决策的 RuntimeSnapshot"
 
-acceptance_count: 9
+acceptance_count: 10
 
 risk_register:
   - id: R1
@@ -72,6 +74,10 @@ risk_register:
     risk: 旧 Probe 原型与新协议暂时并存
     mitigation: v0.01-b 统一迁移 Availability 和 Snapshot
     severity: medium
+  - id: R4
+    risk: 状态数据使用 dataclass 导致跨边界校验和持久化合同不一致
+    mitigation: 对齐 andybot，统一使用 Pydantic v2 BaseModel
+    severity: high
 
 git_workflow:
   branch_creation: v0.01-a continues from pre-split feature baseline 8784a82

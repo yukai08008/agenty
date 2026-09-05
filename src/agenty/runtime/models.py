@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Mapping
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RuntimeState(str, Enum):
@@ -46,35 +46,39 @@ class RuntimeFailureCode(str, Enum):
     INTERNAL = "runtime_internal_error"
 
 
-@dataclass(frozen=True)
-class RuntimeFailure:
+class RuntimeFailure(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     code: RuntimeFailureCode
     message: str
-    details: Mapping[str, object] = field(default_factory=dict)
+    details: dict[str, object] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class RuntimeInfo:
+class RuntimeInfo(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     runtime_id: str
     kind: str
     version: str
     executable: str
     capabilities: frozenset[RuntimeCapability]
-    evidence: Mapping[str, str] = field(default_factory=dict)
+    evidence: dict[str, str] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
-class RuntimeEvent:
+class RuntimeEvent(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     type: RuntimeEventType
     from_state: RuntimeState
     to_state: RuntimeState
-    timestamp: datetime = field(
+    timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
 
-@dataclass(frozen=True)
-class RuntimeSnapshot:
+class RuntimeSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
     state: RuntimeState
     info: RuntimeInfo | None
     failure: RuntimeFailure | None

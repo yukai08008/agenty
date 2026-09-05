@@ -22,7 +22,9 @@
   - 分支：`v0.01-b`
   - Capability 已绑定 Runtime 版本、Channel、支持状态、证据和约束
   - AvailabilityMachine 已使用标准事件驱动，并区分 AVAILABLE、DEGRADED、UNAVAILABLE、INCOMPATIBLE
-  - 质量门：27 项 pytest 通过、compileall 通过、diff check 通过、data 未被 Git 追踪
+  - Runtime 协议模型与 AvailabilityStateData 已对齐 andybot，迁移为 Pydantic v2
+  - **issue-pydantic-state-models** (CLOSED)：早期 dataclass 模型不符合项目约束，已迁移并增加 JSON 往返恢复测试
+  - 质量门：30 项 pytest 通过、compileall 通过、diff check 通过、data 未被 Git 追踪
 - **v0.01-c OpenCode 1.18.26 Probe**（待创建）
   - **issue-capability-evidence-scope** (FOUND)：旧 Probe 尚未迁移到新 CapabilityRecord，帮助参数仍由旧模型直接视为能力
 
@@ -53,6 +55,7 @@
 - [x] 设计 Availability/Channel/Session/Turn 聚合状态机
 - [x] v0.01-a：落地 Runtime 公共协议和合同测试
 - [x] v0.01-b：落地 capability 的版本、通道、证据模型和 AvailabilityMachine
+- [x] 修复状态模型实现约束：统一为 Pydantic v2
 - [ ] 将 OpenCode Probe 迁移到 v0.01-b 公共模型
 - [ ] 再推进 OpenCode 配置与会话切片
 

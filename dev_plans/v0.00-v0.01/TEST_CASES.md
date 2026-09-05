@@ -8,6 +8,7 @@
 | INV-02 | OpenCode 命令默认不含自动批准参数 | 是 |
 | INV-03 | 自动测试不调用真实模型 | 是 |
 | INV-04 | `git ls-files data/` 结果为空 | 是 |
+| INV-05 | Runtime 跨边界与可持久化状态模型继承 Pydantic BaseModel | 是 |
 
 ## 1. v0.01-a Runtime 公共协议
 
@@ -30,6 +31,9 @@
 | PB-03 | 成功探测进入 `AVAILABLE` | PB-1 |
 | PB-04 | 缺失和不兼容使用不同状态 | PB-1 |
 | PB-05 | Capability 记录版本、通道、证据和约束 | PB-2 |
+| PB-06 | Runtime 协议模型可执行 JSON dump/validate 往返 | PB-3 |
+| PB-07 | AvailabilityStateData 可持久化并恢复 Machine | PB-3 |
+| PB-08 | Runtime 协议拒绝未声明字段 | PB-3 |
 
 ## 3. v0.01-c OpenCode Probe
 
