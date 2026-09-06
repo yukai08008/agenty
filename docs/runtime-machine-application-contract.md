@@ -52,6 +52,24 @@ stateDiagram-v2
 
 厂商事件只能由对应版本 Adapter 解释。公共事件必须包含 Runtime、correlation、Session、Turn、顺序和时间上下文；原始事件只作为诊断证据，应用不能依赖其结构。
 
+v0.05-b 已实现两层边界：
+
+```mermaid
+flowchart LR
+    RAW["OpenCode 1.18.26 JSON"]
+    N["OpenCodeEventNormalizer"]
+    DRAFT["RuntimeEvent draft<br/>sequence=None + raw_event"]
+    ES["RuntimeEventStreamMachine"]
+    PUBLIC["公共 RuntimeEvent<br/>连续 sequence + 无 raw_event"]
+    DIAG["RuntimeRawEventRecord<br/>按 sequence 独立保存"]
+
+    RAW --> N --> DRAFT --> ES
+    ES --> PUBLIC
+    ES --> DIAG
+```
+
+EventStream 状态为 `IDLE → ACTIVE → CLOSED`。只有 EventStream 可以分配公共 sequence；Runtime、correlation、Turn 和首次观察到的 Session ID 在流内锁定。上下文漂移、未知事件、畸形 JSON 和非法 Turn 生命周期均转换为 `invalid_output`，不会静默影响状态。
+
 ## 3. 会话管理
 
 公共操作至少区分 `new` 和 `resume`。Session 必须和 Project Environment 绑定；Environment 不匹配时阻断接续，不能只凭原生 Session ID 恢复。

@@ -137,15 +137,18 @@ def test_current_baseline_does_not_add_unconfirmed_transition_states():
 
 def test_package_root_exports_the_new_protocol_snapshot_and_event():
     from agenty.runtime import RuntimeEvent as ExportedRuntimeEvent
+    from agenty.runtime import RuntimeEventStreamMachine as ExportedEventStream
     from agenty.runtime import RuntimeSnapshot as ExportedRuntimeSnapshot
     from agenty.runtime import RuntimeTarget as ExportedRuntimeTarget
     from agenty.runtime import RuntimeTurnRequest as ExportedRuntimeTurnRequest
     from agenty.runtime import RuntimeTurnRunner as ExportedRuntimeTurnRunner
     from agenty.runtime import TurnMachine as ExportedTurnMachine
     from agenty.runtime.runner import RuntimeTurnRunner
+    from agenty.runtime.events import RuntimeEventStreamMachine
     from agenty.runtime.turn import TurnMachine
 
     assert ExportedRuntimeEvent is RuntimeEvent
+    assert ExportedEventStream is RuntimeEventStreamMachine
     assert ExportedRuntimeSnapshot is RuntimeSnapshot
     assert ExportedRuntimeTarget is RuntimeTarget
     assert ExportedRuntimeTurnRequest is RuntimeTurnRequest

@@ -30,12 +30,12 @@
 
 | ID | 回归用例 | 预期 | 状态 |
 |---|---|---|---|
-| EV-01 | 已知厂商事件 | 转换为对应公共 RuntimeEvent | 待实现 |
-| EV-02 | 一次输出包含多个厂商事件 | 公共事件顺序稳定且 sequence 单调 | 待实现 |
-| EV-03 | 厂商事件携带 Session/Turn | 公共关联上下文完整 | 待实现 |
-| EV-04 | 未知事件类型 | 明确 unknown/invalid，不静默改变状态 | 待实现 |
-| EV-05 | 畸形 JSON 或字段 | 结构化 `invalid_output` | 已部分自动化 |
-| EV-06 | raw event | 只作为诊断证据，公共 payload 不依赖厂商结构 | 待实现 |
+| EV-01 | 已知厂商事件 | 转换为对应公共 RuntimeEvent | 已自动化 |
+| EV-02 | 一次输出包含多个厂商事件 | 公共事件顺序稳定且 sequence 单调 | 已自动化 |
+| EV-03 | 厂商事件携带 Session/Turn | 公共关联上下文完整 | 已自动化 |
+| EV-04 | 未知事件类型 | 明确 unknown/invalid，不静默改变状态 | 已自动化 |
+| EV-05 | 畸形 JSON 或字段 | 结构化 `invalid_output` | 已自动化 |
+| EV-06 | raw event | 只作为诊断证据，公共 payload 不依赖厂商结构 | 已自动化 |
 
 ## 3. 会话管理
 

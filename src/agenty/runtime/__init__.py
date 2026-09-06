@@ -6,6 +6,13 @@ from agenty.runtime.availability import (
     InvalidAvailabilityTransition,
 )
 from agenty.runtime.machine import RuntimeProbeMachine
+from agenty.runtime.events import (
+    InvalidRuntimeEventStream,
+    RuntimeEventStreamMachine,
+    RuntimeEventStreamState,
+    RuntimeEventStreamStateData,
+    RuntimeRawEventRecord,
+)
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     AvailabilityState,
@@ -54,14 +61,19 @@ __all__ = [
     "InvalidAvailabilityTransition",
     "InvalidTurnTransition",
     "InvalidRuntimeSelection",
+    "InvalidRuntimeEventStream",
     "OutputEvent",
     "RuntimeEvent",
+    "RuntimeEventStreamMachine",
+    "RuntimeEventStreamState",
+    "RuntimeEventStreamStateData",
     "RuntimeFailure",
     "RuntimeFailureCode",
     "RuntimeIdentity",
     "RuntimeProbeMachine",
     "RuntimeSnapshot",
     "RuntimeTarget",
+    "RuntimeRawEventRecord",
     "RuntimeTurnRequest",
     "RuntimeTurnRunner",
     "RuntimeAdapterRegistry",

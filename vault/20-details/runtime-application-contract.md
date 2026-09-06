@@ -27,3 +27,5 @@ v0.05 已在 `dev_plans/v0.03-v0.05/TEST_CASES.md` 为六类职责建立累计�
 ## Current implementation
 
 v0.05-a 已实现精确 `RuntimeTarget(kind, version)`、RuntimeAdapterRegistry 和 RuntimeSelectionMachine。未注册版本不回退；Adapter 身份与目标不一致时拒绝选择；状态和事件使用 Pydantic 模型并可持久化恢复。本机 OpenCode 1.18.26 已通过该选择机真实进入 `SELECTED`。
+
+v0.05-b 已实现 RuntimeEventStreamMachine 与 OpenCode 1.18.26 EventNormalizer。EventStream 分配连续 sequence 并锁定关联上下文；公共事件与 raw 诊断数据分离。EV-01 至 EV-06 已自动化。

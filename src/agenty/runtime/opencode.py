@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import subprocess
@@ -16,7 +15,6 @@ from agenty.runtime.protocol import (
     CapabilitySupport,
     ChannelMode,
     EvidenceLevel,
-    OutputEvent,
     RuntimeEvent,
     RuntimeFailure,
     RuntimeFailureCode,
@@ -24,6 +22,7 @@ from agenty.runtime.protocol import (
     RuntimeTurnRequest,
     TurnEvent,
 )
+from agenty.runtime.opencode_events import OpenCodeEventNormalizer
 
 
 _VERSION = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?\b")
@@ -57,6 +56,7 @@ class OpenCodeRuntimeAdapter:
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.supported_versions = supported_versions or _SUPPORTED_VERSIONS
+        self.event_normalizer = OpenCodeEventNormalizer()
 
     @property
     def identity(self) -> RuntimeIdentity:
@@ -196,37 +196,30 @@ class OpenCodeRuntimeAdapter:
         for line_number, line in enumerate(stdout.splitlines(), start=1):
             if not line.strip():
                 continue
-            raw = self._parse_json_line(line, line_number)
+            normalized = self.event_normalizer.normalize_json_line(
+                line,
+                runtime,
+                request,
+                line_number=line_number,
+            )
+            raw = normalized.raw_event
+            assert isinstance(raw, dict)
             saw_event = True
-            event_session = raw.get("sessionID")
-            if event_session is not None and (
-                not isinstance(event_session, str) or not event_session.strip()
-            ):
-                raise self._invalid_output(
-                    "OpenCode event has an invalid sessionID",
-                    line_number=line_number,
-                )
+            event_session = normalized.session_id
             if event_session:
                 if session_id is not None and event_session != session_id:
-                    raise self._invalid_output(
+                    raise self.event_normalizer.invalid_output(
                         "OpenCode changed sessionID during one turn",
                         line_number=line_number,
                     )
                 session_id = event_session
 
-            normalized = self._normalize_output(
-                raw,
-                runtime,
-                request,
-                session_id,
-                line_number,
-            )
             yield normalized
             if raw.get("type") == "error":
                 runtime_error = raw
 
         if not saw_event or session_id is None:
-            raise self._invalid_output(
+            raise self.event_normalizer.invalid_output(
                 "OpenCode turn produced no session-bound JSON events"
             )
         if runtime_error is not None:
@@ -234,7 +227,7 @@ class OpenCodeRuntimeAdapter:
                 RuntimeFailure(
                     code=RuntimeFailureCode.TURN_FAILED,
                     message="OpenCode reported a runtime error",
-                    details=self._error_details(runtime_error),
+                    details=self.event_normalizer.error_details(runtime_error),
                 )
             )
         if process.returncode != 0:
@@ -307,111 +300,6 @@ class OpenCodeRuntimeAdapter:
             command.extend(("--variant", request.effort))
         command.extend(("--", request.prompt))
         return command
-
-    def _parse_json_line(self, line: str, line_number: int) -> dict:
-        try:
-            raw = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise self._invalid_output(
-                "OpenCode emitted malformed JSON",
-                line_number=line_number,
-            ) from exc
-        if not isinstance(raw, dict):
-            raise self._invalid_output(
-                "OpenCode JSON event must be an object",
-                line_number=line_number,
-            )
-        return raw
-
-    def _normalize_output(
-        self,
-        raw: dict,
-        runtime: RuntimeIdentity,
-        request: RuntimeTurnRequest,
-        session_id: str | None,
-        line_number: int,
-    ) -> RuntimeEvent:
-        event_type = raw.get("type")
-        event_names = {
-            "step_start": OutputEvent.STEP_STARTED,
-            "step_finish": OutputEvent.STEP_FINISHED,
-            "text": OutputEvent.TEXT_EMITTED,
-            "reasoning": OutputEvent.REASONING_EMITTED,
-            "error": OutputEvent.RUNTIME_ERROR_EMITTED,
-        }
-        part = raw.get("part")
-        if event_type == "tool_use":
-            tool_state = part.get("state") if isinstance(part, dict) else None
-            status = (
-                tool_state.get("status") if isinstance(tool_state, dict) else None
-            )
-            name = (
-                OutputEvent.TOOL_FAILED
-                if status == "error"
-                else OutputEvent.TOOL_COMPLETED
-            )
-        else:
-            name = event_names.get(event_type)
-        if name is None:
-            raise self._invalid_output(
-                f"OpenCode emitted unknown event type: {event_type!r}",
-                line_number=line_number,
-            )
-        payload = {}
-        if name in {OutputEvent.TEXT_EMITTED, OutputEvent.REASONING_EMITTED}:
-            text = part.get("text") if isinstance(part, dict) else None
-            if isinstance(text, str):
-                payload["text"] = text
-        if name in {OutputEvent.TOOL_COMPLETED, OutputEvent.TOOL_FAILED}:
-            if isinstance(part, dict) and isinstance(part.get("tool"), str):
-                payload["tool"] = part["tool"]
-        if name is OutputEvent.RUNTIME_ERROR_EMITTED:
-            payload.update(self._error_details(raw))
-        return RuntimeEvent(
-            name=name,
-            runtime=runtime,
-            correlation_id=request.correlation_id,
-            turn_id=request.turn_id,
-            session_id=session_id,
-            payload=payload,
-            raw_event=raw,
-        )
-
-    def _invalid_output(self, message: str, **details) -> RuntimeTurnAdapterError:
-        return RuntimeTurnAdapterError(
-            RuntimeFailure(
-                code=RuntimeFailureCode.INVALID_OUTPUT,
-                message=message,
-                details=details,
-            )
-        )
-
-    def _error_text(self, raw: dict) -> str:
-        return self._error_details(raw)["message"]
-
-    def _error_details(self, raw: dict) -> dict:
-        error = raw.get("error")
-        if isinstance(error, str):
-            return {"message": error}
-        if isinstance(error, dict):
-            data = error.get("data")
-            details = {}
-            if isinstance(error.get("name"), str):
-                details["error_type"] = error["name"]
-            if isinstance(data, dict):
-                if isinstance(data.get("message"), str):
-                    details["message"] = data["message"]
-                if isinstance(data.get("statusCode"), int):
-                    details["status_code"] = data["statusCode"]
-                if isinstance(data.get("isRetryable"), bool):
-                    details["retryable"] = data["isRetryable"]
-            if "message" not in details and isinstance(error.get("message"), str):
-                details["message"] = error["message"]
-            if "message" not in details and "error_type" in details:
-                details["message"] = details["error_type"]
-            if details:
-                return details
-        return {"message": "OpenCode runtime error"}
 
     def _turn_event(
         self,

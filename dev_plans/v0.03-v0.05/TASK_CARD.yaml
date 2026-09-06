@@ -31,6 +31,20 @@ deliverables:
       - RuntimeSelectionStateData
   - module: tests/test_runtime_selection.py
     change: v0.05-a Runtime 类型与版本回归
+  - module: src/agenty/runtime/events.py
+    change: 连续 sequence、上下文锁定和 raw 诊断隔离的公共事件流状态机
+    public_api:
+      - RuntimeEventStreamMachine
+      - RuntimeEventStreamStateData
+      - RuntimeRawEventRecord
+  - module: src/agenty/runtime/opencode_events.py
+    change: OpenCode 1.18.26 JSON 事件归一化
+    public_api:
+      - OpenCodeEventNormalizer
+  - module: tests/test_runtime_events.py
+    change: EV 公共事件顺序、上下文和持久化回归
+  - module: tests/test_opencode_events.py
+    change: OpenCode 已知、未知和畸形事件归一化回归
 
 feature_branches:
   - name: v0.05-a

@@ -101,8 +101,11 @@ def run_turn(executable: Path, working_directory: Path, timeout: float = 5):
 
 def test_fake_opencode_drives_successful_session_bound_turn(tmp_path):
     executable, _, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+    runner = RuntimeTurnRunner(adapter, identity)
 
-    result = run_turn(executable, working_directory)
+    result = runner.run(request(working_directory))
 
     assert result.state is TurnState.SUCCEEDED
     assert result.session_id == "session-1"
@@ -112,6 +115,13 @@ def test_fake_opencode_drives_successful_session_bound_turn(tmp_path):
         if event.name is OutputEvent.TEXT_EMITTED
     ]
     assert [event.payload["text"] for event in text_events] == ["done"]
+    assert [event.sequence for event in result.events] == list(
+        range(1, len(result.events) + 1)
+    )
+    assert all(event.raw_event is None for event in result.events)
+    stream = runner.last_event_stream
+    assert stream is not None
+    assert len(stream.raw_events) == 3
 
 
 def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):

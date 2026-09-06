@@ -204,6 +204,7 @@ opencode run --format json --dir <working_directory> [--model ...] [--variant ..
 - `step_start`、`step_finish`、`text`、`reasoning`、`tool_use`、`error` 被转换为公共输出事件。
 - JSON error、非零退出、畸形输出和超时进入结构化失败终态。
 - Session ID 从 JSON 事件建立，同一 Turn 内改变时拒绝继续。
+- OpenCode 事件转换由版本固定的 `OpenCodeEventNormalizer` 独立完成；公共 EventStream 移除 raw JSON，并用相同 sequence 单独保留诊断记录。
 
 上述结论目前属于假可执行文件集成测试，不提升为 `live_verified`。真实模型冒烟测试属于 v0.03-c，必须显式开启。
 

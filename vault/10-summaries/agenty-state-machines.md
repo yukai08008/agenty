@@ -24,6 +24,7 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 - v0.03-b 已实现 OpenCode 1.18.26 JSONL 调用适配和通用 Runner；假进程调用链已覆盖成功与主要失败路径，真实模型测试仍需显式开启。
 - v0.03-c 已用 free 模型完成显式 live 验证：nemotron 新 Session 调用成功，mimo 的 429 被正确归一化为结构化失败。证据范围不包含 effort、resume、fork 或审批。
 - v0.05 将 RuntimeMachine 固定为六类应用职责并建立累计回归；v0.05-a 已实现 Runtime 类型、精确版本、Adapter 注册和选择状态机。
+- v0.05-b 已实现版本固定的 OpenCode 事件归一化和公共 EventStream；应用事件连续有序且不携带 raw JSON，原始诊断按 sequence 单独保存。
 - 第一次顶层校准确定 AgentyMachine 使用 `RESOLVING_RUNTIME` 消费公共 RuntimeSnapshot，并通过 capability 守卫接受或阻断。
 - OpenCode 1.18.26 的能力分析表明 RuntimeMachine 应聚合 Availability、Channel、Session、Turn 四个状态机；能力必须绑定版本、通道和证据等级。
 - v0.01-a 已把 Runtime 状态与事件基线落成中立公共协议；四类状态独立，事件带关联上下文，快照只读聚合，尚未实现运行行为。

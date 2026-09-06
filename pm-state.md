@@ -78,7 +78,14 @@
   - 本机 OpenCode 1.18.26 经新选择机真实进入 SELECTED
   - 质量门：69 passed / 1 live skipped；compileall、diff check、vault strict 通过；data 未被 Git 追踪
   - 项目仍未安装 ruff
-- **v0.05-b 事件归一化** (PLANNED)
+- **v0.05-b 事件归一化** (CODE_COMPLETE)
+  - 分支：`v0.05-b`
+  - OpenCodeEventNormalizer 固定解释 1.18.26 的 JSON 事件
+  - RuntimeEventStreamMachine 独占公共 sequence，并锁定 Runtime/correlation/Turn/Session 上下文
+  - 公共事件移除 raw JSON，诊断记录按相同 sequence 独立保存
+  - 未知/畸形事件、上下文漂移和非法 Turn 生命周期均进入 invalid_output
+  - RuntimeTurnRunner 已接入 EventStream；成功 Turn 的应用事件连续有序
+  - 质量门：90 passed / 1 live skipped；compileall 与 diff check 通过
 - **v0.05-c 会话管理** (PLANNED)
 - **v0.05-d 模型与 effort** (PLANNED)
 - **v0.05-e 交互管理** (PLANNED)
@@ -91,7 +98,7 @@
 
 ## 当前焦点
 
-- 验收 v0.05-a；下一步按回归基线进入 v0.05-b 事件归一化。
+- 验收 v0.05-b；下一步按回归基线进入 v0.05-c Session 新建/接续与 EnvironmentBinding。
 
 ## 已确认的后续设计约束
 
@@ -119,7 +126,7 @@
 - [x] v0.03-c：增加显式开启的真实模型冒烟测试
 - [x] 建立 RuntimeMachine 六类应用职责回归基线
 - [x] v0.05-a：Runtime 类型与精确版本选择
-- [ ] v0.05-b：事件归一化与公共事件序列
+- [x] v0.05-b：事件归一化与公共事件序列
 - [ ] v0.05-c：Session 新建/接续与 EnvironmentBinding
 - [ ] v0.05-d：模型类型、模型标识与 effort
 - [ ] v0.05-e：auto、授权与取消

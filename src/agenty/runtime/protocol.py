@@ -336,6 +336,7 @@ class RuntimeEvent(BaseModel):
     correlation_id: str
     session_id: str | None = None
     turn_id: str | None = None
+    sequence: int | None = Field(default=None, ge=1)
     timestamp: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
