@@ -74,6 +74,31 @@ EventStream 状态为 `IDLE → ACTIVE → CLOSED`。只有 EventStream 可以�
 
 公共操作至少区分 `new` 和 `resume`。Session 必须和 Project Environment 绑定；Environment 不匹配时阻断接续，不能只凭原生 Session ID 恢复。
 
+v0.05-c 将会话拆成三个公共对象：
+
+- `ProjectEnvironment`：由应用分配的 Environment ID、Project ID、工作目录和可选 revision；
+- `RuntimeSessionBinding`：精确 Runtime 实例/版本、原生 Session ID、Environment 和 lineage；
+- `RuntimeSessionRequest`：明确表达 `new` 或 `resume`，其中 resume 必须给出 Session ID 和 Environment。
+
+```mermaid
+stateDiagram-v2
+    [*] --> NONE
+    NONE --> RESOLVING: open(new / resume)
+    FAILED --> RESOLVING: retry
+    RESOLVING --> READY: binding resolved
+    RESOLVING --> FAILED: unknown session / env mismatch
+    READY --> BUSY: turn starts
+    BUSY --> READY: turn finishes
+    READY --> FAILED: session lost
+    BUSY --> FAILED: session lost
+    READY --> CLOSING: close
+    CLOSING --> CLOSED: closed
+```
+
+`RuntimeSessionBindingCatalog` 是可持久化 binding 状态的当前内存边界。接续流程先按 Runtime identity 与 Session ID 找到 binding，再对完整 Environment 做相等校验；失败时不调用 Runtime。通过校验后，OpenCode 1.18.26 Adapter 才映射为 `--session <id>`，且返回事件中的 Session ID 必须保持一致。`--continue` 和 `--fork` 不参与此流程。
+
+Session lineage 当前记录创建来源和可选 `parent_session_id`。v0.05-c 只实现 new/resume；fork 与 `Env → Action(strategy) → Env' → Reward` 仍由后续版本扩展，不把原生 fork 等同于 Agenty 执行分支。
+
 ## 4. 模型选择
 
 模型配置同时表达 desired 和 effective，至少包含模型类型/标识与 effort。RuntimeMachine 只有获得行为证据后才能宣称配置已经生效。

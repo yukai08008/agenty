@@ -157,6 +157,9 @@ class RuntimeFailureCode(str, Enum):
     TURN_FAILED = "turn_failed"
     TURN_TIMEOUT = "turn_timeout"
     INVALID_OUTPUT = "runtime_invalid_output"
+    SESSION_NOT_FOUND = "runtime_session_not_found"
+    ENVIRONMENT_MISMATCH = "runtime_environment_mismatch"
+    SESSION_ID_MISMATCH = "runtime_session_id_mismatch"
 
 
 RuntimeEventName: TypeAlias = (
@@ -294,8 +297,99 @@ class RuntimeFailure(BaseModel):
     details: dict[str, Any] = Field(default_factory=dict)
 
 
+class SessionOpenMode(str, Enum):
+    NEW = "new"
+    RESUME = "resume"
+
+
+class ProjectEnvironment(BaseModel):
+    """Application-owned identity for the project state behind a session."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    environment_id: str
+    project_id: str
+    working_directory: str
+    revision: str | None = None
+
+    @field_validator(
+        "environment_id", "project_id", "working_directory", "revision"
+    )
+    @classmethod
+    def validate_environment_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+
+class RuntimeSessionRequest(BaseModel):
+    """Provider-neutral request to create or resume a runtime session."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: SessionOpenMode
+    correlation_id: str
+    environment: ProjectEnvironment
+    session_id: str | None = None
+
+    @field_validator("correlation_id", "session_id")
+    @classmethod
+    def validate_session_request_text(
+        cls, value: str | None
+    ) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_mode(self) -> "RuntimeSessionRequest":
+        if self.mode is SessionOpenMode.NEW and self.session_id is not None:
+            raise ValueError("new session request must not include session_id")
+        if self.mode is SessionOpenMode.RESUME and self.session_id is None:
+            raise ValueError("resume session request requires session_id")
+        return self
+
+
+class RuntimeSessionBinding(BaseModel):
+    """Auditable lock between runtime lineage and project environment."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    runtime: RuntimeIdentity
+    session_id: str
+    environment: ProjectEnvironment
+    origin: SessionOpenMode
+    parent_session_id: str | None = None
+
+    @field_validator("session_id", "parent_session_id")
+    @classmethod
+    def validate_binding_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_runtime_scope(self) -> "RuntimeSessionBinding":
+        if self.runtime.runtime_version is None:
+            raise ValueError("session binding requires runtime version")
+        if self.runtime.channel is None:
+            raise ValueError("session binding requires runtime channel")
+        if self.parent_session_id == self.session_id:
+            raise ValueError("session cannot be its own parent")
+        return self
+
+
 class RuntimeTurnRequest(BaseModel):
-    """Provider-neutral command for one new-session runtime turn."""
+    """Provider-neutral command for one runtime turn."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -305,6 +399,7 @@ class RuntimeTurnRequest(BaseModel):
     working_directory: str
     model: str | None = None
     effort: str | None = None
+    session: RuntimeSessionBinding | None = None
 
     @field_validator(
         "turn_id", "correlation_id", "working_directory", "model", "effort"
@@ -324,6 +419,18 @@ class RuntimeTurnRequest(BaseModel):
         if not value.strip():
             raise ValueError("value must not be empty")
         return value
+
+    @model_validator(mode="after")
+    def validate_session_environment(self) -> "RuntimeTurnRequest":
+        if (
+            self.session is not None
+            and self.working_directory
+            != self.session.environment.working_directory
+        ):
+            raise ValueError(
+                "turn working_directory must match the bound environment"
+            )
+        return self
 
 
 class RuntimeEvent(BaseModel):

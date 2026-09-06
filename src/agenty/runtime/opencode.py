@@ -190,7 +190,9 @@ class OpenCodeRuntimeAdapter:
                 timed_out=True,
             ) from exc
 
-        session_id = None
+        session_id = (
+            request.session.session_id if request.session is not None else None
+        )
         saw_event = False
         runtime_error = None
         for line_number, line in enumerate(stdout.splitlines(), start=1):
@@ -279,6 +281,14 @@ class OpenCodeRuntimeAdapter:
                     details={"working_directory": request.working_directory},
                 )
             )
+        if request.session is not None and request.session.runtime != runtime:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.SESSION_ID_MISMATCH,
+                    message="session binding belongs to another runtime",
+                    details={"session_id": request.session.session_id},
+                )
+            )
 
     def _turn_command(
         self,
@@ -298,6 +308,8 @@ class OpenCodeRuntimeAdapter:
             command.extend(("--model", request.model))
         if request.effort is not None:
             command.extend(("--variant", request.effort))
+        if request.session is not None:
+            command.extend(("--session", request.session.session_id))
         command.extend(("--", request.prompt))
         return command
 

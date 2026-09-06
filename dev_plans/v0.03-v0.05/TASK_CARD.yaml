@@ -45,6 +45,20 @@ deliverables:
     change: EV 公共事件顺序、上下文和持久化回归
   - module: tests/test_opencode_events.py
     change: OpenCode 已知、未知和畸形事件归一化回归
+  - module: src/agenty/runtime/session.py
+    change: Session 新建、接续、生命周期和 EnvironmentBinding 状态机
+    public_api:
+      - SessionMachine
+      - RuntimeSessionCoordinator
+      - RuntimeSessionBindingCatalog
+  - module: src/agenty/runtime/protocol.py
+    change: ProjectEnvironment、Session 请求与不可变 Binding 公共模型
+    public_api:
+      - ProjectEnvironment
+      - RuntimeSessionRequest
+      - RuntimeSessionBinding
+  - module: tests/test_session_machine.py
+    change: v0.05-c Session 与 Environment 绑定回归
 
 feature_branches:
   - name: v0.05-a

@@ -6,9 +6,12 @@ from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
     ChannelMode,
     OutputEvent,
+    ProjectEnvironment,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeSessionBinding,
     RuntimeTurnRequest,
+    SessionOpenMode,
     TurnState,
 )
 from agenty.runtime.runner import RuntimeTurnRunner
@@ -90,6 +93,27 @@ def request(working_directory: Path, prompt: str = "answer briefly"):
     )
 
 
+def resume_request(
+    identity: RuntimeIdentity,
+    working_directory: Path,
+) -> RuntimeTurnRequest:
+    environment = ProjectEnvironment(
+        environment_id="env-main",
+        project_id="agenty",
+        working_directory=str(working_directory),
+    )
+    return request(working_directory).model_copy(
+        update={
+            "session": RuntimeSessionBinding(
+                runtime=identity,
+                session_id="session-1",
+                environment=environment,
+                origin=SessionOpenMode.NEW,
+            )
+        }
+    )
+
+
 def run_turn(executable: Path, working_directory: Path, timeout: float = 5):
     identity = runtime(executable)
     adapter = OpenCodeRuntimeAdapter(
@@ -153,6 +177,66 @@ def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):
     assert "--session" not in invocation["args"]
     assert "--continue" not in invocation["args"]
     assert "--fork" not in invocation["args"]
+
+
+def test_resume_uses_only_validated_session_binding(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+
+    result = RuntimeTurnRunner(adapter, identity).run(
+        resume_request(identity, working_directory)
+    )
+    invocation = json.loads(invocation_path.read_text())
+
+    assert result.state is TurnState.SUCCEEDED
+    assert invocation["args"][-4:] == [
+        "--session",
+        "session-1",
+        "--",
+        "answer briefly",
+    ]
+    assert "--continue" not in invocation["args"]
+    assert "--fork" not in invocation["args"]
+
+
+def test_resume_binding_for_another_runtime_is_rejected_before_start(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    request_for_other_runtime = resume_request(
+        identity.model_copy(update={"runtime_id": "other-opencode"}),
+        working_directory,
+    )
+
+    result = RuntimeTurnRunner(
+        OpenCodeRuntimeAdapter(str(executable)), identity
+    ).run(request_for_other_runtime)
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.SESSION_ID_MISMATCH
+    assert not invocation_path.exists()
+
+
+def test_resume_rejects_runtime_output_from_another_session(tmp_path):
+    executable, _, working_directory = fake_opencode(tmp_path)
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json\n"
+        "print(json.dumps({"
+        "'type': 'text', 'sessionID': 'session-2', "
+        "'part': {'text': 'wrong session'}}))\n"
+    )
+    executable.chmod(0o755)
+    identity = runtime(executable)
+
+    result = RuntimeTurnRunner(
+        OpenCodeRuntimeAdapter(str(executable)), identity
+    ).run(resume_request(identity, working_directory))
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.INVALID_OUTPUT
 
 
 def test_runtime_error_event_fails_turn(tmp_path):

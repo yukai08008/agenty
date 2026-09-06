@@ -86,7 +86,14 @@
   - 未知/畸形事件、上下文漂移和非法 Turn 生命周期均进入 invalid_output
   - RuntimeTurnRunner 已接入 EventStream；成功 Turn 的应用事件连续有序
   - 质量门：90 passed / 1 live skipped；compileall 与 diff check 通过
-- **v0.05-c 会话管理** (PLANNED)
+- **v0.05-c 会话管理** (CODE_COMPLETE)
+  - 分支：`v0.05-c`
+  - ProjectEnvironment 将 Environment ID、Project ID、工作目录和 revision 作为应用侧项目身份
+  - RuntimeSessionBinding 将精确 Runtime identity、原生 Session ID、Environment 和 lineage 不可变绑定
+  - SessionMachine 覆盖 new/resume、READY/BUSY、close、lost 和失败重试入口
+  - 未知 Session 或 Environment 不匹配在 Runtime 调用前失败；同一 Session 不允许重新绑定
+  - OpenCode 1.18.26 仅在 binding 校验后使用 `--session`，并核对返回 Session ID
+  - 质量门：105 passed / 1 live skipped；compileall、diff check、vault strict 通过
 - **v0.05-d 模型与 effort** (PLANNED)
 - **v0.05-e 交互管理** (PLANNED)
 - **v0.05-f 监控与结果** (PLANNED)
@@ -98,7 +105,7 @@
 
 ## 当前焦点
 
-- 验收 v0.05-b；下一步按回归基线进入 v0.05-c Session 新建/接续与 EnvironmentBinding。
+- 验收 v0.05-c；下一步按回归基线进入 v0.05-d 模型类型、模型标识与 effort。
 
 ## 已确认的后续设计约束
 
@@ -127,7 +134,7 @@
 - [x] 建立 RuntimeMachine 六类应用职责回归基线
 - [x] v0.05-a：Runtime 类型与精确版本选择
 - [x] v0.05-b：事件归一化与公共事件序列
-- [ ] v0.05-c：Session 新建/接续与 EnvironmentBinding
+- [x] v0.05-c：Session 新建/接续与 EnvironmentBinding
 - [ ] v0.05-d：模型类型、模型标识与 effort
 - [ ] v0.05-e：auto、授权与取消
 - [ ] v0.05-f：监控、失败、artifacts 与事件日志

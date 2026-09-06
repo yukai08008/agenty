@@ -8,8 +8,8 @@
 |---|---|---|
 | INV-01 | 公共模型不存在 OpenCode、Codex、Claude 专属字段 | 已自动化 |
 | INV-02 | 跨边界和持久化状态都是 Pydantic BaseModel | 已自动化 |
-| INV-03 | 非法事件不改变状态或事件序列 | 部分自动化 |
-| INV-04 | Runtime、Session、Turn、correlation 上下文不能漂移 | 部分自动化 |
+| INV-03 | 非法事件不改变状态或事件序列 | 已自动化 |
+| INV-04 | Runtime、Session、Turn、correlation 上下文不能漂移 | 已自动化 |
 | INV-05 | 默认测试不调用真实模型，auto 默认关闭 | 部分自动化 |
 | INV-06 | `git ls-files data/` 为空 | 质量门 |
 
@@ -41,13 +41,13 @@
 
 | ID | 回归用例 | 预期 | 状态 |
 |---|---|---|---|
-| SE-01 | 新建 Session | `NONE → RESOLVING → READY` | 待实现 |
-| SE-02 | 接续 Session | 必须显式 session ID 和 EnvironmentRef | 待实现 |
-| SE-03 | Session 不存在 | 进入 `FAILED` 并可重试 | 待实现 |
-| SE-04 | Environment identity 一致 | 允许接续 | 待实现 |
-| SE-05 | Environment identity 不一致 | 阻断接续，不调用 Runtime | 待实现 |
-| SE-06 | Turn 开始与结束 | Session 在 `READY ↔ BUSY` 转换 | 待实现 |
-| SE-07 | Session lineage | 新建、接续和后续 fork 关系可追踪 | 待实现 |
+| SE-01 | 新建 Session | `NONE → RESOLVING → READY` | 已自动化 |
+| SE-02 | 接续 Session | 必须显式 session ID 和 EnvironmentRef | 已自动化 |
+| SE-03 | Session 不存在 | 进入 `FAILED` 并可重试 | 已自动化 |
+| SE-04 | Environment identity 一致 | 允许接续 | 已自动化 |
+| SE-05 | Environment identity 不一致 | 阻断接续，不调用 Runtime | 已自动化 |
+| SE-06 | Turn 开始与结束 | Session 在 `READY ↔ BUSY` 转换 | 已自动化 |
+| SE-07 | Session lineage | 新建/接续来源可追踪，并为后续 fork 保留 parent | 已自动化 |
 
 ## 4. 模型类型、模型标识与 effort
 
