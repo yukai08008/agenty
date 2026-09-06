@@ -82,6 +82,10 @@ deliverables:
     change: OpenCode 模型目录解析与 Adapter 回归
   - module: AGENTS.md
     change: 仓库级接手顺序、架构不变量、当前进度、下一阶段和质量门
+  - module: ROADMAP.md
+    change: 产品目标、M1 Anna 完成定义、版本路线和当前差距
+  - module: CHANGELOG.md
+    change: 按版本和功能分支记录行为变化、验证证据与限制
 
 feature_branches:
   - name: v0.05-a

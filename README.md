@@ -2,7 +2,7 @@
 
 [中文文档](README_zh.md)
 
-> Agenty is evolving from the early demo CLI into an agent system with reasoning, memory, and multiple runtime adapters. See [`pm-state.md`](pm-state.md) for current progress and [`AGENTS.md`](AGENTS.md) for the repository handoff contract. The content below primarily describes the existing early CLI.
+> Agenty is evolving from the early demo CLI into an agent system with reasoning, memory, and multiple runtime adapters. See [`ROADMAP.md`](ROADMAP.md) for goals, [`pm-state.md`](pm-state.md) for current progress, [`CHANGELOG.md`](CHANGELOG.md) for completed changes, and [`AGENTS.md`](AGENTS.md) for the handoff contract. The content below primarily describes the existing early CLI.
 
 A demo agent CLI built with uv — showcasing how to create a Python CLI tool that installs on both Linux and macOS with a single command.
 
