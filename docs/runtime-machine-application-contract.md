@@ -103,6 +103,30 @@ Session lineage 当前记录创建来源和可选 `parent_session_id`。v0.05-c 
 
 模型配置同时表达 desired 和 effective，至少包含模型类型/标识与 effort。RuntimeMachine 只有获得行为证据后才能宣称配置已经生效。
 
+v0.05-d 使用以下公共对象：
+
+- `RuntimeModelRef`：分离模型类型、provider ID 和 model ID；
+- `RuntimeModelSelection`：模型引用与可选 effort；
+- `RuntimeModelDescriptor`：绑定精确 Runtime identity、支持的 effort 和证据；
+- `RuntimeModelCatalog`：一个 Runtime 实例和版本下的可选模型集合；
+- `RuntimeModelBinding`：通过目录校验后，交给 Turn 的不可变选择凭证。
+
+```mermaid
+stateDiagram-v2
+    [*] --> UNCONFIGURED
+    UNCONFIGURED --> VALIDATING: configure(desired, catalog)
+    REJECTED --> VALIDATING: retry
+    VALIDATING --> CONFIGURED: model + effort supported
+    VALIDATING --> REJECTED: model missing / effort unsupported / runtime mismatch
+    CONFIGURED --> CONFIGURED: report effective + execution evidence
+    CONFIGURED --> UNCONFIGURED: clear
+    REJECTED --> UNCONFIGURED: clear
+```
+
+effort 是配置值，不是生命周期状态。`desired` 永远保存应用请求；`effective` 只在获得 `integration_verified` 或 `live_verified` 执行证据后单独写入，即使 Runtime 实际值不同也不覆盖 desired。
+
+OpenCode 1.18.26 Adapter 用 `models --verbose` 建立 `probe_verified` 目录，将 `providerID/id` 映射为模型身份、将 `variants` 键映射为该模型支持的 effort。通过 `RuntimeModelSelectionMachine` 的 binding 才能进入 Turn，并分别映射到 `--model provider/model` 与 `--variant effort`。目录证据只证明选项存在，不证明一次 Turn 实际采用了该值。
+
 ## 5. 交互管理
 
 应用表达 `ask / auto_approve / auto_reject / deny_by_default` 等策略，Adapter 再映射到 Runtime。auto 必须显式开启并审计；通道不能弹出授权时必须通过 capability 拒绝 ask 模式。

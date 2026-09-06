@@ -4,10 +4,13 @@ from pathlib import Path
 import pytest
 
 from agenty.runtime.machine import RuntimeProbeMachine
+from agenty.runtime.model_selection import RuntimeModelSelectionMachine
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
     AvailabilityState,
     OutputEvent,
+    RuntimeModelRef,
+    RuntimeModelSelection,
     RuntimeTurnRequest,
     TurnState,
 )
@@ -29,8 +32,23 @@ def test_live_opencode_free_model_smoke():
         correlation_id="live-opencode-probe"
     )
     assert runtime_snapshot.availability is AvailabilityState.AVAILABLE
+    runtime = runtime_snapshot.runtime
+    catalog = adapter.probe_model_catalog(runtime)
+    provider_id, model_id = model.split("/", 1)
+    configured = RuntimeModelSelectionMachine(runtime).configure(
+        RuntimeModelSelection(
+            model=RuntimeModelRef(
+                model_type="language",
+                provider_id=provider_id,
+                model_id=model_id,
+            )
+        ),
+        catalog,
+        "live-model-selection-1",
+    )
+    assert configured.binding is not None
 
-    result = RuntimeTurnRunner(adapter, runtime_snapshot.runtime).run(
+    result = RuntimeTurnRunner(adapter, runtime).run(
         RuntimeTurnRequest(
             turn_id="live-smoke-turn",
             correlation_id="live-smoke-request",
@@ -39,7 +57,7 @@ def test_live_opencode_free_model_smoke():
                 "AGENTY_SMOKE_OK"
             ),
             working_directory=str(workspace),
-            model=model,
+            model=configured.binding,
         )
     )
 

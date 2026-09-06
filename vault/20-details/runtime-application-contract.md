@@ -31,3 +31,5 @@ v0.05-a 已实现精确 `RuntimeTarget(kind, version)`、RuntimeAdapterRegistry 
 v0.05-b 已实现 RuntimeEventStreamMachine 与 OpenCode 1.18.26 EventNormalizer。EventStream 分配连续 sequence 并锁定关联上下文；公共事件与 raw 诊断数据分离。EV-01 至 EV-06 已自动化。
 
 v0.05-c 已实现 ProjectEnvironment、RuntimeSessionBinding、SessionMachine 和 binding catalog。resume 必须同时匹配精确 Runtime identity、Session ID 与完整 Environment；校验成功后 OpenCode Adapter 才使用 `--session`，并拒绝返回其他 Session ID。原生 `--continue`/`--fork` 不承担这一应用语义。
+
+v0.05-d 已实现 RuntimeModelSelectionMachine 和版本绑定的模型目录。模型类型/provider/model ID 与 effort 使用中立模型；未知模型、非法 effort 和 Runtime 错配在 Turn 前失败。desired 不被 Runtime 实际值覆盖，effective 只接受 integration/live 执行证据。OpenCode 1.18.26 使用 `models --verbose` 探测并映射 `--model`/`--variant`。

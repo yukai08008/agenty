@@ -10,6 +10,11 @@ from agenty.runtime.protocol import (
     OutputEvent,
     RuntimeEvent,
     RuntimeIdentity,
+    RuntimeModelBinding,
+    RuntimeModelCatalog,
+    RuntimeModelDescriptor,
+    RuntimeModelRef,
+    RuntimeModelSelection,
     RuntimeSnapshot,
     RuntimeTarget,
     RuntimeTurnRequest,
@@ -85,6 +90,11 @@ def test_public_protocol_has_no_vendor_specific_fields():
         RuntimeSnapshot,
         RuntimeTarget,
         RuntimeTurnRequest,
+        RuntimeModelRef,
+        RuntimeModelSelection,
+        RuntimeModelDescriptor,
+        RuntimeModelCatalog,
+        RuntimeModelBinding,
     )
     field_names = {
         field_name.lower()
@@ -102,6 +112,11 @@ def test_public_protocol_models_use_pydantic_and_round_trip_json():
         RuntimeSnapshot,
         RuntimeTarget,
         RuntimeTurnRequest,
+        RuntimeModelRef,
+        RuntimeModelSelection,
+        RuntimeModelDescriptor,
+        RuntimeModelCatalog,
+        RuntimeModelBinding,
     )
     assert all(issubclass(model, BaseModel) for model in public_models)
 

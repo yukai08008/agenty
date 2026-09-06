@@ -143,7 +143,7 @@ stateDiagram-v2
 
 v0.03-a 已实现纯 `TurnMachine`。每个实例只负责一个 Turn，通过标准 `RuntimeEvent` 驱动；生命周期非法、Runtime/Turn/correlation 不匹配或 Session ID 中途改变时拒绝事件且不修改状态。`TurnStateData` 使用 Pydantic v2，可 JSON 往返恢复。
 
-公共 `RuntimeTurnRequest` 强制包含 `turn_id`、`correlation_id`、`prompt` 和 `working_directory`，可选携带 model 与 effort。工作目录只是本次调用的最低环境绑定，不等同于完整的 ProjectEnvironment identity。
+公共 `RuntimeTurnRequest` 强制包含 `turn_id`、`correlation_id`、`prompt` 和 `working_directory`，可选携带已经校验的 `RuntimeModelBinding` 与 `RuntimeSessionBinding`。模型与 effort 的原始字符串不能绕过目录状态机直接进入 Adapter；工作目录也必须与 Session 所绑定的 ProjectEnvironment identity 一致。
 
 v0.03-b 增加通用 `RuntimeTurnRunner` 和 OpenCode 1.18.26 JSONL Adapter。Runner 只消费归一化事件；Adapter 负责启动进程、解析厂商输出，并结合 JSON error、退出码、EOF 与超时生成公共终态。当前只允许新建 Session。
 

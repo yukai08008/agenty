@@ -27,6 +27,8 @@ related:
 
 v0.03-a 已实现 Pydantic `RuntimeTurnRequest`、`TurnStateData` 和普通 Python `TurnMachine`。状态机验证生命周期、事件域、Runtime、Turn、correlation 和 Session 上下文，失败与超时要求结构化 RuntimeFailure。
 
+v0.05-c/d 收紧了 Turn 输入：接续必须携带与 ProjectEnvironment 锁定的 RuntimeSessionBinding；模型与 effort 必须携带由精确版本模型目录验证所得的 RuntimeModelBinding。Adapter 不再接受未经验证的模型字符串。
+
 v0.03-b 已实现通用 RuntimeTurnRunner 与 OpenCode 1.18.26 JSONL Adapter。当前只允许在显式工作目录中新建 Session；prompt 由 CLI 参数分隔符保护，默认不启用 auto、resume 或 fork。假进程集成测试覆盖成功、错误、畸形输出、非零退出与超时。
 
 v0.03-c 已完成显式真实模型测试，证据见 [[opencode-live-smoke-2026-09-06]]。默认 pytest 仍跳过 live case。

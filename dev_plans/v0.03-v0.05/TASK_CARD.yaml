@@ -59,6 +59,27 @@ deliverables:
       - RuntimeSessionBinding
   - module: tests/test_session_machine.py
     change: v0.05-c Session 与 Environment 绑定回归
+  - module: src/agenty/runtime/model_selection.py
+    change: desired/effective 分离的模型与 effort 选择状态机
+    public_api:
+      - RuntimeModelSelectionMachine
+      - ModelSelectionStateData
+  - module: src/agenty/runtime/opencode_models.py
+    change: OpenCode 1.18.26 verbose 模型目录解析
+    public_api:
+      - OpenCodeModelCatalogParser
+  - module: src/agenty/runtime/protocol.py
+    change: 模型引用、选择、描述、目录和 binding 公共模型
+    public_api:
+      - RuntimeModelRef
+      - RuntimeModelSelection
+      - RuntimeModelDescriptor
+      - RuntimeModelCatalog
+      - RuntimeModelBinding
+  - module: tests/test_model_selection.py
+    change: v0.05-d 模型与 effort 状态机回归
+  - module: tests/test_opencode_models.py
+    change: OpenCode 模型目录解析与 Adapter 回归
 
 feature_branches:
   - name: v0.05-a

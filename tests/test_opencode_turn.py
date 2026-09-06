@@ -5,10 +5,15 @@ from pathlib import Path
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
     ChannelMode,
+    EvidenceLevel,
     OutputEvent,
     ProjectEnvironment,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeModelBinding,
+    RuntimeModelDescriptor,
+    RuntimeModelRef,
+    RuntimeModelSelection,
     RuntimeSessionBinding,
     RuntimeTurnRequest,
     SessionOpenMode,
@@ -82,14 +87,36 @@ def runtime(executable: Path) -> RuntimeIdentity:
     )
 
 
-def request(working_directory: Path, prompt: str = "answer briefly"):
+def model_binding(identity: RuntimeIdentity) -> RuntimeModelBinding:
+    model = RuntimeModelRef(
+        model_type="language",
+        provider_id="provider",
+        model_id="model",
+    )
+    return RuntimeModelBinding(
+        runtime=identity,
+        selection=RuntimeModelSelection(model=model, effort="high"),
+        descriptor=RuntimeModelDescriptor(
+            runtime=identity,
+            model=model,
+            supported_efforts=("low", "high"),
+            evidence=EvidenceLevel.PROBE_VERIFIED,
+            evidence_source="fake model catalog",
+        ),
+    )
+
+
+def request(
+    working_directory: Path,
+    prompt: str = "answer briefly",
+    model: RuntimeModelBinding | None = None,
+):
     return RuntimeTurnRequest(
         turn_id="turn-1",
         correlation_id="request-1",
         prompt=prompt,
         working_directory=str(working_directory),
-        model="provider/model",
-        effort="high",
+        model=model,
     )
 
 
@@ -152,7 +179,11 @@ def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):
     executable, invocation_path, working_directory = fake_opencode(tmp_path)
     identity = runtime(executable)
     adapter = OpenCodeRuntimeAdapter(str(executable))
-    turn_request = request(working_directory, prompt="--auto")
+    turn_request = request(
+        working_directory,
+        prompt="--auto",
+        model=model_binding(identity),
+    )
 
     result = RuntimeTurnRunner(adapter, identity).run(turn_request)
     invocation = json.loads(invocation_path.read_text())
@@ -215,6 +246,25 @@ def test_resume_binding_for_another_runtime_is_rejected_before_start(tmp_path):
     assert result.state is TurnState.FAILED
     assert result.failure is not None
     assert result.failure.code is RuntimeFailureCode.SESSION_ID_MISMATCH
+    assert not invocation_path.exists()
+
+
+def test_model_binding_for_another_runtime_is_rejected_before_start(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    other = identity.model_copy(update={"runtime_id": "other-opencode"})
+    turn_request = request(
+        working_directory,
+        model=model_binding(other),
+    )
+
+    result = RuntimeTurnRunner(
+        OpenCodeRuntimeAdapter(str(executable)), identity
+    ).run(turn_request)
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.IDENTITY_MISMATCH
     assert not invocation_path.exists()
 
 

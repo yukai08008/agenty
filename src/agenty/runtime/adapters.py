@@ -8,9 +8,10 @@ from typing import Protocol
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     CapabilityRecord,
-    RuntimeFailure,
     RuntimeEvent,
+    RuntimeFailure,
     RuntimeIdentity,
+    RuntimeModelCatalog,
     RuntimeTurnRequest,
 )
 
@@ -35,6 +36,12 @@ class RuntimeTurnAdapterError(RuntimeError):
     ) -> None:
         self.failure = failure
         self.timed_out = timed_out
+        super().__init__(failure.message)
+
+
+class RuntimeModelAdapterError(RuntimeError):
+    def __init__(self, failure: RuntimeFailure) -> None:
+        self.failure = failure
         super().__init__(failure.message)
 
 
@@ -63,4 +70,14 @@ class RuntimeTurnAdapter(Protocol):
         runtime: RuntimeIdentity,
         request: RuntimeTurnRequest,
     ) -> Iterator[RuntimeEvent]:
+        ...
+
+
+class RuntimeModelAdapter(Protocol):
+    """Runtime-specific discovery of version-scoped model choices."""
+
+    def probe_model_catalog(
+        self,
+        runtime: RuntimeIdentity,
+    ) -> RuntimeModelCatalog:
         ...

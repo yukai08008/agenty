@@ -8,7 +8,16 @@ import subprocess
 from collections.abc import Iterator
 from pathlib import Path
 
-from agenty.runtime.adapters import RuntimeAdapterError, RuntimeTurnAdapterError
+from agenty.runtime.adapters import (
+    RuntimeAdapterError,
+    RuntimeModelAdapterError,
+    RuntimeTurnAdapterError,
+)
+from agenty.runtime.opencode_events import OpenCodeEventNormalizer
+from agenty.runtime.opencode_models import (
+    InvalidOpenCodeModelCatalog,
+    OpenCodeModelCatalogParser,
+)
 from agenty.runtime.protocol import (
     AvailabilityEvent,
     CapabilityRecord,
@@ -19,11 +28,10 @@ from agenty.runtime.protocol import (
     RuntimeFailure,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeModelCatalog,
     RuntimeTurnRequest,
     TurnEvent,
 )
-from agenty.runtime.opencode_events import OpenCodeEventNormalizer
-
 
 _VERSION = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?\b")
 _SUPPORTED_VERSIONS = frozenset({"1.18.26"})
@@ -57,6 +65,7 @@ class OpenCodeRuntimeAdapter:
         self.timeout_seconds = timeout_seconds
         self.supported_versions = supported_versions or _SUPPORTED_VERSIONS
         self.event_normalizer = OpenCodeEventNormalizer()
+        self.model_catalog_parser = OpenCodeModelCatalogParser()
 
     @property
     def identity(self) -> RuntimeIdentity:
@@ -145,6 +154,39 @@ class OpenCodeRuntimeAdapter:
                 )
             )
         return tuple(records)
+
+    def probe_model_catalog(
+        self,
+        runtime: RuntimeIdentity,
+    ) -> RuntimeModelCatalog:
+        if (
+            runtime.runtime_kind != "opencode"
+            or runtime.runtime_version not in self.supported_versions
+            or runtime.executable is None
+        ):
+            raise RuntimeModelAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.IDENTITY_MISMATCH,
+                    message="model probe requires detected OpenCode identity",
+                )
+            )
+        try:
+            output = self._run_probe(
+                runtime.executable,
+                "models",
+                "--verbose",
+            )
+            return self.model_catalog_parser.parse(output, runtime)
+        except _ProbeCommandError as exc:
+            raise RuntimeModelAdapterError(exc.failure) from exc
+        except InvalidOpenCodeModelCatalog as exc:
+            raise RuntimeModelAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.MODEL_CATALOG_INVALID,
+                    message="OpenCode returned an invalid model catalog",
+                    details={"error": str(exc)},
+                )
+            ) from exc
 
     def iter_turn_events(
         self,
@@ -289,6 +331,13 @@ class OpenCodeRuntimeAdapter:
                     details={"session_id": request.session.session_id},
                 )
             )
+        if request.model is not None and request.model.runtime != runtime:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.IDENTITY_MISMATCH,
+                    message="model binding belongs to another runtime",
+                )
+            )
 
     def _turn_command(
         self,
@@ -305,9 +354,10 @@ class OpenCodeRuntimeAdapter:
             request.working_directory,
         ]
         if request.model is not None:
-            command.extend(("--model", request.model))
-        if request.effort is not None:
-            command.extend(("--variant", request.effort))
+            selection = request.model.selection
+            command.extend(("--model", selection.model.qualified_id))
+            if selection.effort is not None:
+                command.extend(("--variant", selection.effort))
         if request.session is not None:
             command.extend(("--session", request.session.session_id))
         command.extend(("--", request.prompt))

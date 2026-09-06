@@ -53,12 +53,12 @@
 
 | ID | 回归用例 | 预期 | 状态 |
 |---|---|---|---|
-| MO-01 | 设置模型类型和模型标识 | 保存 desired selection | 待实现 |
-| MO-02 | 设置 effort | 与模型选择共同校验但不成为生命周期状态 | 待实现 |
-| MO-03 | Runtime 接受配置 | 写入 effective selection 和证据 | 待实现 |
-| MO-04 | 模型不存在或 effort 不支持 | 执行前结构化失败 | 待实现 |
-| MO-05 | Runtime 回报实际模型不同 | 不覆盖 desired，单独记录 effective | 待实现 |
-| MO-06 | 配置 JSON 往返 | desired/effective 可恢复 | 待实现 |
+| MO-01 | 设置模型类型和模型标识 | 保存 desired selection | 已自动化 |
+| MO-02 | 设置 effort | 与模型选择共同校验但不成为生命周期状态 | 已自动化 |
+| MO-03 | Runtime 接受配置 | 有执行级证据后写入 effective selection | 已自动化 |
+| MO-04 | 模型不存在或 effort 不支持 | 执行前结构化失败 | 已自动化 |
+| MO-05 | Runtime 回报实际模型不同 | 不覆盖 desired，单独记录 effective | 已自动化 |
+| MO-06 | 配置 JSON 往返 | desired/effective 可恢复 | 已自动化 |
 
 ## 5. 交互管理
 

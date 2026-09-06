@@ -225,3 +225,23 @@ AGENTY_LIVE_OPENCODE=1 uv run pytest tests/test_opencode_live.py -q
 ```
 
 默认 live 模型固定为本次成功的 `opencode/nemotron-3.5-lightning-free`，也可通过 `AGENTY_LIVE_OPENCODE_MODEL` 显式覆盖。
+
+## 12. v0.05-d 模型目录与选择边界
+
+OpenCode 1.18.26 Adapter 已增加无模型调用的 `models --verbose` 探测。2026-09-06 本机探测得到 160 个目录条目；数量和具体模型是动态外部状态，不固化为协议。
+
+版本固定解析规则：
+
+- 输出标题 `provider/model` 必须与 JSON 的 `providerID`、`id` 一致；
+- `variants` 的键形成该模型允许的 effort 集合；空集合表示不能传 effort；
+- 目录项使用 `probe_verified`，只证明本机 Runtime 宣布了该选项；
+- 模型或 effort 不在目录时，在启动 Turn 进程前失败；
+- OpenCode CLI JSON 当前没有回报实际生效模型，因此不能仅凭目录或参数将其写为 effective。
+
+公共 `RuntimeModelBinding` 校验通过后，Adapter 才生成：
+
+```text
+--model <provider>/<model> [--variant <effort>]
+```
+
+默认回归使用假可执行文件，不调用真实模型。显式 live 用例现在也先经过同一模型目录与 binding 流程，但本阶段没有重新执行 live 调用。

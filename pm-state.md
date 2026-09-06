@@ -94,7 +94,16 @@
   - 未知 Session 或 Environment 不匹配在 Runtime 调用前失败；同一 Session 不允许重新绑定
   - OpenCode 1.18.26 仅在 binding 校验后使用 `--session`，并核对返回 Session ID
   - 质量门：105 passed / 1 live skipped；compileall、diff check、vault strict 通过
-- **v0.05-d 模型与 effort** (PLANNED)
+- **v0.05-d 模型与 effort** (CODE_COMPLETE)
+  - 分支：`v0.05-d`
+  - RuntimeModelRef 分离模型类型、provider ID 与 model ID，effort 保持可扩展字符串
+  - OpenCode 1.18.26 的 `models --verbose` 被解析为版本和通道绑定的模型目录
+  - RuntimeModelSelectionMachine 在 Turn 前拒绝未知模型、非法 effort 和 Runtime 错配
+  - RuntimeModelBinding 是已校验选择进入 Turn 的公共凭证，并映射到 `--model`/`--variant`
+  - desired 与 effective 独立；effective 只接受 integration/live 执行证据
+  - 本机无模型调用探测得到 160 个动态目录项；未重新执行 live 模型调用
+  - 质量门：125 passed / 1 live skipped；compileall、diff check、vault strict 通过
+  - 本阶段涉及文件 Ruff 通过；项目其他旧文件仍有既有 lint 基线
 - **v0.05-e 交互管理** (PLANNED)
 - **v0.05-f 监控与结果** (PLANNED)
 
@@ -105,7 +114,7 @@
 
 ## 当前焦点
 
-- 验收 v0.05-c；下一步按回归基线进入 v0.05-d 模型类型、模型标识与 effort。
+- 验收 v0.05-d；下一步按回归基线进入 v0.05-e 交互管理。
 
 ## 已确认的后续设计约束
 
@@ -135,7 +144,7 @@
 - [x] v0.05-a：Runtime 类型与精确版本选择
 - [x] v0.05-b：事件归一化与公共事件序列
 - [x] v0.05-c：Session 新建/接续与 EnvironmentBinding
-- [ ] v0.05-d：模型类型、模型标识与 effort
+- [x] v0.05-d：模型类型、模型标识与 effort
 - [ ] v0.05-e：auto、授权与取消
 - [ ] v0.05-f：监控、失败、artifacts 与事件日志
 

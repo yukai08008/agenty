@@ -137,7 +137,7 @@ session_closed
 
 一次用户输入对应一个 Turn。Turn 到达终态后不复用。
 
-对应实现位于 `src/agenty/runtime/turn.py`。Machine 使用普通 Python 对象，`RuntimeTurnRequest` 与 `TurnStateData` 使用 Pydantic v2。每个请求必须显式携带工作目录；Session ID 可由 Runtime 首个有效事件建立，之后不得在同一 Turn 中改变。
+对应实现位于 `src/agenty/runtime/turn.py`。Machine 使用普通 Python 对象，`RuntimeTurnRequest` 与 `TurnStateData` 使用 Pydantic v2。每个请求必须显式携带工作目录；Session ID 可由 Runtime 首个有效事件建立，之后不得在同一 Turn 中改变。可选模型配置必须是经目录校验、绑定精确 Runtime 的 `RuntimeModelBinding`。
 
 ### 状态
 
