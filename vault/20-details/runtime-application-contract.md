@@ -1,0 +1,29 @@
+---
+id: runtime-application-contract
+type: decision
+status: active
+updated: 2026-09-06
+tags: [agenty, runtime, application-contract, state-machine]
+part_of:
+  - "[[agenty-state-machines]]"
+depends_on:
+  - "[[dual-machine-boundary]]"
+  - "[[runtime-state-event-baseline]]"
+related:
+  - "[[runtime-capability-scope]]"
+  - "[[runtime-turn-contract]]"
+---
+
+# Decision: RuntimeMachine exposes six application-facing responsibilities
+
+## Decision
+
+RuntimeMachine 对应用统一负责六类底层 Runtime 对接和管理：Runtime 类型与版本、事件归一化、会话管理、模型与 effort、交互管理、执行监控与结果管理。应用只依赖公共命令、事件、快照和结果。
+
+## Regression baseline
+
+v0.05 已在 `dev_plans/v0.03-v0.05/TEST_CASES.md` 为六类职责建立累计回归清单，按 a 到 f 逐类实现。后续每个 Runtime 与版本都必须重跑适用的公共合同。
+
+## Current implementation
+
+v0.05-a 已实现精确 `RuntimeTarget(kind, version)`、RuntimeAdapterRegistry 和 RuntimeSelectionMachine。未注册版本不回退；Adapter 身份与目标不一致时拒绝选择；状态和事件使用 Pydantic 模型并可持久化恢复。本机 OpenCode 1.18.26 已通过该选择机真实进入 `SELECTED`。

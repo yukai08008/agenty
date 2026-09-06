@@ -1,0 +1,110 @@
+milestone: M1-Anna
+version: v0.05
+parent_final: null
+parent_baseline: "v0.03@a035a0e"
+title: RuntimeMachine 应用侧完整职责
+type: api
+prd: dev_plans/v0.03-v0.05/PRD.md
+test_cases: dev_plans/v0.03-v0.05/TEST_CASES.md
+
+invariants:
+  - "Runtime 类型与版本共同确定 Adapter"
+  - "应用不依赖厂商事件结构"
+  - "Session 接续必须校验 Environment identity"
+  - "auto 默认关闭且授权决策可审计"
+  - "跨边界和可持久化状态使用 Pydantic v2"
+  - "默认测试不调用真实模型"
+  - "运行时数据不在 git 追踪中"
+
+deliverables:
+  - module: docs/runtime-machine-application-contract.md
+    change: 六类应用侧职责和逐类状态机实施顺序
+  - module: src/agenty/runtime/protocol.py
+    change: 应用选择的 RuntimeTarget 精确类型与版本模型
+    public_api:
+      - RuntimeTarget
+  - module: src/agenty/runtime/selection.py
+    change: 精确版本 Adapter 注册表和 Runtime 选择状态机
+    public_api:
+      - RuntimeAdapterRegistry
+      - RuntimeSelectionMachine
+      - RuntimeSelectionStateData
+  - module: tests/test_runtime_selection.py
+    change: v0.05-a Runtime 类型与版本回归
+
+feature_branches:
+  - name: v0.05-a
+    title: Runtime 类型与版本选择
+    deps: []
+    acceptance:
+      - "RA-1 应用用类型和精确版本选择 Runtime"
+      - "RA-2 注册表只返回精确匹配的 Adapter"
+      - "RA-3 探测身份与目标不一致时拒绝选择"
+      - "RA-4 选择状态可序列化、恢复和重试"
+  - name: v0.05-b
+    title: 事件归一化
+    deps: [v0.05-a]
+    acceptance:
+      - "EV-1 厂商事件转换为有序公共事件"
+      - "EV-2 公共事件保留完整关联上下文"
+      - "EV-3 未知与畸形事件不能静默改变状态"
+  - name: v0.05-c
+    title: 会话管理
+    deps: [v0.05-b]
+    acceptance:
+      - "SE-1 支持新建和接续两种公共命令"
+      - "SE-2 Session 与 Environment identity 共同绑定"
+      - "SE-3 Environment 不匹配时阻断接续"
+  - name: v0.05-d
+    title: 模型与 effort
+    deps: [v0.05-c]
+    acceptance:
+      - "MO-1 模型类型、标识和 effort 使用中立模型"
+      - "MO-2 desired 与 effective 配置分离"
+      - "MO-3 不支持的选择在执行前失败"
+  - name: v0.05-e
+    title: 交互管理
+    deps: [v0.05-d]
+    acceptance:
+      - "IN-1 ask、auto 和 deny 策略明确"
+      - "IN-2 中途授权可暂停和恢复 Turn"
+      - "IN-3 自动及人工决策均写入审计事件"
+  - name: v0.05-f
+    title: 监控与结果
+    deps: [v0.05-e]
+    acceptance:
+      - "RS-1 额度、限流、认证、模型、超时和崩溃分类"
+      - "RS-2 TurnResult 聚合输出、usage 和 failure"
+      - "RS-3 ArtifactManifest 与 EventLogRef 可追踪"
+
+acceptance_count: 19
+
+risk_register:
+  - id: R1
+    risk: 状态组合爆炸
+    mitigation: 六类独立状态数据并由门面聚合
+    severity: high
+  - id: R2
+    risk: 厂商字段污染应用合同
+    mitigation: 公共字段和事件归一化回归
+    severity: high
+  - id: R3
+    risk: Session 与 Environment 错配
+    mitigation: 接续前强制双重校验
+    severity: high
+  - id: R4
+    risk: auto 无意扩大权限
+    mitigation: 默认关闭并审计每次决策
+    severity: high
+
+git_workflow:
+  branch_creation: from v0.03-c@a035a0e because v0.03 is an unreleased API baseline
+  feature_order: v0.05-a, v0.05-b, v0.05-c, v0.05-d, v0.05-e, v0.05-f
+  merge_policy: --no-ff
+  before_merge_checks:
+    - "pytest all PASS"
+    - "六类职责累计合同测试 PASS"
+    - "git ls-files data/ | wc -l == 0"
+  final_tag: null
+
+签名: Agent-PM-v0.05

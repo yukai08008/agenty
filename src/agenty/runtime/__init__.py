@@ -21,6 +21,7 @@ from agenty.runtime.protocol import (
     RuntimeFailureCode,
     RuntimeIdentity,
     RuntimeSnapshot,
+    RuntimeTarget,
     RuntimeTurnRequest,
     SessionEvent,
     SessionState,
@@ -29,6 +30,15 @@ from agenty.runtime.protocol import (
 )
 from agenty.runtime.turn import InvalidTurnTransition, TurnMachine, TurnStateData
 from agenty.runtime.runner import RuntimeTurnRunner
+from agenty.runtime.selection import (
+    InvalidRuntimeSelection,
+    RuntimeAdapterRegistry,
+    RuntimeSelectionEvent,
+    RuntimeSelectionEventName,
+    RuntimeSelectionMachine,
+    RuntimeSelectionState,
+    RuntimeSelectionStateData,
+)
 
 __all__ = [
     "AvailabilityEvent",
@@ -43,6 +53,7 @@ __all__ = [
     "EvidenceLevel",
     "InvalidAvailabilityTransition",
     "InvalidTurnTransition",
+    "InvalidRuntimeSelection",
     "OutputEvent",
     "RuntimeEvent",
     "RuntimeFailure",
@@ -50,8 +61,15 @@ __all__ = [
     "RuntimeIdentity",
     "RuntimeProbeMachine",
     "RuntimeSnapshot",
+    "RuntimeTarget",
     "RuntimeTurnRequest",
     "RuntimeTurnRunner",
+    "RuntimeAdapterRegistry",
+    "RuntimeSelectionEvent",
+    "RuntimeSelectionEventName",
+    "RuntimeSelectionMachine",
+    "RuntimeSelectionState",
+    "RuntimeSelectionStateData",
     "SessionEvent",
     "SessionState",
     "TurnEvent",

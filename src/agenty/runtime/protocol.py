@@ -145,6 +145,8 @@ class EvidenceLevel(str, Enum):
 
 
 class RuntimeFailureCode(str, Enum):
+    ADAPTER_NOT_REGISTERED = "runtime_adapter_not_registered"
+    IDENTITY_MISMATCH = "runtime_identity_mismatch"
     NOT_FOUND = "runtime_not_found"
     PROBE_TIMEOUT = "runtime_probe_timeout"
     PROBE_EXIT = "runtime_probe_exit"
@@ -160,6 +162,33 @@ class RuntimeFailureCode(str, Enum):
 RuntimeEventName: TypeAlias = (
     AvailabilityEvent | ChannelEvent | SessionEvent | TurnEvent | OutputEvent
 )
+
+
+class RuntimeTarget(BaseModel):
+    """Application-selected runtime kind and exact adapter version."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    runtime_kind: str
+    runtime_version: str
+
+    @field_validator("runtime_kind", "runtime_version")
+    @classmethod
+    def validate_target_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_exact_version(self) -> "RuntimeTarget":
+        if any(marker in self.runtime_version for marker in "<>=*^~"):
+            raise ValueError("runtime_version must be an exact version")
+        return self
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return (self.runtime_kind, self.runtime_version)
 
 
 class RuntimeIdentity(BaseModel):

@@ -1,6 +1,6 @@
 # 项目状态: agenty
 
-> 最近更新: 2026-09-05 | 更新者: Codex PM
+> 最近更新: 2026-09-06 | 更新者: Codex PM
 
 ## 里程碑
 
@@ -64,6 +64,26 @@
   - 质量门：默认套件 55 passed / 1 live skipped；显式 live case 1 passed；compileall、diff check、vault strict 通过
   - 项目仍未安装 ruff
 
+### v0.05 (ACTIVE) — RuntimeMachine 应用侧完整职责
+
+- 父基线：`v0.03-c@a035a0e`；v0.03 为不发布的 API 迭代
+- 跳过 v0.04：本阶段继续开发协议和底层状态机，不属于 Web 版
+- 六类职责回归基线：Runtime/版本、事件归一化、会话、模型/effort、交互、监控/结果
+- **v0.05-a Runtime 类型与版本选择** (CODE_COMPLETE)
+  - 分支：`v0.05-a`
+  - RuntimeTarget 强制应用指定 Runtime 类型和精确版本
+  - RuntimeAdapterRegistry 只按 `(kind, version)` 精确解析，不做版本回退
+  - RuntimeSelectionMachine 区分 UNSELECTED、RESOLVING、SELECTED、REJECTED、CLOSED
+  - 工厂异常、Runtime 不可用和身份不匹配均保存结构化失败，不能遗留在 RESOLVING
+  - 本机 OpenCode 1.18.26 经新选择机真实进入 SELECTED
+  - 质量门：69 passed / 1 live skipped；compileall、diff check、vault strict 通过；data 未被 Git 追踪
+  - 项目仍未安装 ruff
+- **v0.05-b 事件归一化** (PLANNED)
+- **v0.05-c 会话管理** (PLANNED)
+- **v0.05-d 模型与 effort** (PLANNED)
+- **v0.05-e 交互管理** (PLANNED)
+- **v0.05-f 监控与结果** (PLANNED)
+
 ## 历史分支
 
 - `feature/file-agent-foundation` (ABANDONED)：方向确认前过早实现；保留本地提交作为历史，不合并、不推送。
@@ -71,7 +91,7 @@
 
 ## 当前焦点
 
-- v0.03 调用链已贯通；下一步回到 AgentyMachine 顶层，校准它如何提交 RuntimeTurnRequest 和消费 Turn 结果。
+- 验收 v0.05-a；下一步按回归基线进入 v0.05-b 事件归一化。
 
 ## 已确认的后续设计约束
 
@@ -97,6 +117,13 @@
 - [x] v0.03-a：实现公共 Turn 请求、状态数据和状态机
 - [x] v0.03-b：实现 OpenCode JSON 调用适配
 - [x] v0.03-c：增加显式开启的真实模型冒烟测试
+- [x] 建立 RuntimeMachine 六类应用职责回归基线
+- [x] v0.05-a：Runtime 类型与精确版本选择
+- [ ] v0.05-b：事件归一化与公共事件序列
+- [ ] v0.05-c：Session 新建/接续与 EnvironmentBinding
+- [ ] v0.05-d：模型类型、模型标识与 effort
+- [ ] v0.05-e：auto、授权与取消
+- [ ] v0.05-f：监控、失败、artifacts 与事件日志
 
 ## 不变量
 
