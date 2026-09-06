@@ -7,9 +7,11 @@ from agenty.runtime.protocol import (
     ChannelEvent,
     ChannelMode,
     ChannelState,
+    InteractionEvent,
     OutputEvent,
     RuntimeEvent,
     RuntimeIdentity,
+    RuntimeInteractionPolicy,
     RuntimeModelBinding,
     RuntimeModelCatalog,
     RuntimeModelDescriptor,
@@ -77,6 +79,7 @@ def test_public_event_names_are_unique_across_domains():
         SessionEvent,
         TurnEvent,
         OutputEvent,
+        InteractionEvent,
     )
     names = [event.value for event_type in event_types for event in event_type]
 
@@ -95,6 +98,7 @@ def test_public_protocol_has_no_vendor_specific_fields():
         RuntimeModelDescriptor,
         RuntimeModelCatalog,
         RuntimeModelBinding,
+        RuntimeInteractionPolicy,
     )
     field_names = {
         field_name.lower()
@@ -117,6 +121,7 @@ def test_public_protocol_models_use_pydantic_and_round_trip_json():
         RuntimeModelDescriptor,
         RuntimeModelCatalog,
         RuntimeModelBinding,
+        RuntimeInteractionPolicy,
     )
     assert all(issubclass(model, BaseModel) for model in public_models)
 
@@ -158,8 +163,8 @@ def test_package_root_exports_the_new_protocol_snapshot_and_event():
     from agenty.runtime import RuntimeTurnRequest as ExportedRuntimeTurnRequest
     from agenty.runtime import RuntimeTurnRunner as ExportedRuntimeTurnRunner
     from agenty.runtime import TurnMachine as ExportedTurnMachine
-    from agenty.runtime.runner import RuntimeTurnRunner
     from agenty.runtime.events import RuntimeEventStreamMachine
+    from agenty.runtime.runner import RuntimeTurnRunner
     from agenty.runtime.turn import TurnMachine
 
     assert ExportedRuntimeEvent is RuntimeEvent

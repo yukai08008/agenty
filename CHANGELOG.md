@@ -11,6 +11,26 @@
 
 ## Unreleased — v0.05 RuntimeMachine 六类应用职责
 
+### v0.05-e — 交互管理（CODE_COMPLETE，2026-09-06）
+
+Added:
+
+- Runtime 中立的 InteractionPolicy、ApprovalRequest、ApprovalDecision 和授权审计事件。
+- RuntimeInteractionMachine，支持默认拒绝、ask 暂停/恢复、显式 auto、request ID 校验、审批超时和 actor 审计。
+- Runner cancel 控制与 OpenCode 子进程回收。
+
+Changed:
+
+- RuntimeTurnRequest 默认使用 `deny_by_default`，不会隐式开启 auto。
+- OpenCode 1.18.26 只有显式 `auto_approve` 才映射 `--auto`。
+- `transient_process + JSON` 明确不支持审批往返，ask 在进程启动前被 capability guard 拒绝。
+
+Validation:
+
+- 累计默认回归：142 passed、1 个 live 测试 skipped。
+- IN-01 至 IN-07 已自动化，覆盖自动/人工决策审计、错误 request ID、审批回复失败、取消回收和超时终态。
+- 本阶段未调用真实模型；auto/cancel 为 integration verified，ask 不支持结论绑定 OpenCode 1.18.26 transient_process Channel。
+
 ### Documentation structure（2026-09-06）
 
 - 新增 `ROADMAP.md` 作为产品目标、M1 完成定义与阶段顺序的唯一真相源。

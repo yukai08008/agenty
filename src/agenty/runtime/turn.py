@@ -5,6 +5,7 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from agenty.runtime.protocol import (
+    InteractionEvent,
     OutputEvent,
     RuntimeEvent,
     RuntimeFailure,
@@ -42,6 +43,8 @@ _TRANSITIONS = {
     (TurnState.RUNNING, TurnEvent.TURN_TIMED_OUT): TurnState.TIMED_OUT,
     (TurnState.WAITING_INPUT, TurnEvent.TURN_TIMED_OUT): TurnState.TIMED_OUT,
     (TurnState.WAITING_APPROVAL, TurnEvent.TURN_TIMED_OUT): TurnState.TIMED_OUT,
+    (TurnState.WAITING_INPUT, TurnEvent.TURN_CANCELLED): TurnState.CANCELLED,
+    (TurnState.WAITING_APPROVAL, TurnEvent.TURN_CANCELLED): TurnState.CANCELLED,
 }
 
 _OUTPUT_STATES = {
@@ -51,6 +54,21 @@ _OUTPUT_STATES = {
 }
 
 _FAILURE_EVENTS = {TurnEvent.TURN_FAILED, TurnEvent.TURN_TIMED_OUT}
+
+_INTERACTION_EVENT_STATES = {
+    InteractionEvent.INTERACTION_POLICY_APPLIED: {TurnState.SUBMITTING},
+    InteractionEvent.APPROVAL_REQUESTED: {TurnState.WAITING_APPROVAL},
+    InteractionEvent.APPROVAL_DECIDED: {
+        TurnState.SUBMITTING,
+        TurnState.WAITING_APPROVAL,
+    },
+    InteractionEvent.TURN_CANCEL_REQUESTED: {
+        TurnState.SUBMITTING,
+        TurnState.RUNNING,
+        TurnState.WAITING_INPUT,
+        TurnState.WAITING_APPROVAL,
+    },
+}
 
 
 class TurnStateData(BaseModel):
@@ -104,6 +122,16 @@ class TurnMachine:
             assert self.state is not None
             return self.state
 
+        if isinstance(event.name, InteractionEvent):
+            if self.state not in _INTERACTION_EVENT_STATES[event.name]:
+                raise InvalidTurnTransition(
+                    f"cannot apply {event.name.value!r} from {self._state_name()}"
+                )
+            self._accept_session(event)
+            self._data.events.append(event)
+            assert self.state is not None
+            return self.state
+
         if not isinstance(event.name, TurnEvent):
             raise InvalidTurnTransition(
                 f"event {event.name.value!r} does not belong to TurnMachine"
@@ -124,6 +152,14 @@ class TurnMachine:
 
     def snapshot(self) -> TurnStateData:
         return self._data.model_copy(deep=True)
+
+    def validate(self, event: RuntimeEvent) -> None:
+        clone = TurnMachine(
+            self._data.runtime,
+            self._data.request,
+            self.snapshot(),
+        )
+        clone.apply(event)
 
     def _validate_context(self, event: RuntimeEvent) -> None:
         if event.runtime != self._data.runtime:

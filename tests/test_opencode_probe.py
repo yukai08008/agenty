@@ -4,12 +4,14 @@ from pathlib import Path
 from agenty.runtime.machine import RuntimeProbeMachine
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
+    INTERACTION_APPROVAL_CAPABILITY,
+    INTERACTION_AUTO_APPROVE_CAPABILITY,
+    TURN_CANCEL_CAPABILITY,
     AvailabilityState,
     CapabilitySupport,
     EvidenceLevel,
     RuntimeFailureCode,
 )
-
 
 HELP_TEXT = """Options:
   --model <model>
@@ -20,6 +22,7 @@ HELP_TEXT = """Options:
   --interactive
   --format json
   --file <path>
+  --auto
 """
 
 
@@ -68,6 +71,18 @@ def test_probe_reports_version_and_advertised_capabilities_without_model(tmp_pat
     assert capabilities["model.selection"].evidence is EvidenceLevel.ADVERTISED
     assert capabilities["session.fork"].constraints == (
         "requires --continue or --session",
+    )
+    assert (
+        capabilities[INTERACTION_AUTO_APPROVE_CAPABILITY].support
+        is CapabilitySupport.SUPPORTED
+    )
+    assert (
+        capabilities[INTERACTION_APPROVAL_CAPABILITY].support
+        is CapabilitySupport.UNSUPPORTED
+    )
+    assert (
+        capabilities[TURN_CANCEL_CAPABILITY].support
+        is CapabilitySupport.SUPPORTED
     )
     assert log_path.read_text().splitlines() == ["--version", "run --help"]
 

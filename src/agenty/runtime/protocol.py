@@ -116,6 +116,13 @@ class TurnEvent(str, Enum):
     TURN_TIMED_OUT = "turn_timed_out"
 
 
+class InteractionEvent(str, Enum):
+    INTERACTION_POLICY_APPLIED = "interaction_policy_applied"
+    APPROVAL_REQUESTED = "approval_requested"
+    APPROVAL_DECIDED = "approval_decided"
+    TURN_CANCEL_REQUESTED = "turn_cancel_requested"
+
+
 class OutputEvent(str, Enum):
     STEP_STARTED = "step_started"
     STEP_FINISHED = "step_finished"
@@ -163,11 +170,21 @@ class RuntimeFailureCode(str, Enum):
     MODEL_NOT_FOUND = "runtime_model_not_found"
     EFFORT_UNSUPPORTED = "runtime_effort_unsupported"
     MODEL_CATALOG_INVALID = "runtime_model_catalog_invalid"
+    INTERACTION_UNSUPPORTED = "runtime_interaction_unsupported"
 
 
 RuntimeEventName: TypeAlias = (
-    AvailabilityEvent | ChannelEvent | SessionEvent | TurnEvent | OutputEvent
+    AvailabilityEvent
+    | ChannelEvent
+    | SessionEvent
+    | TurnEvent
+    | InteractionEvent
+    | OutputEvent
 )
+
+INTERACTION_APPROVAL_CAPABILITY = "interaction.approval_roundtrip"
+INTERACTION_AUTO_APPROVE_CAPABILITY = "interaction.auto_approve"
+TURN_CANCEL_CAPABILITY = "turn.cancel"
 
 
 class RuntimeTarget(BaseModel):
@@ -539,6 +556,71 @@ class RuntimeModelBinding(BaseModel):
         return self
 
 
+class InteractionPolicyMode(str, Enum):
+    ASK = "ask"
+    AUTO_APPROVE = "auto_approve"
+    AUTO_REJECT = "auto_reject"
+    DENY_BY_DEFAULT = "deny_by_default"
+
+
+class ApprovalOutcome(str, Enum):
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class RuntimeInteractionPolicy(BaseModel):
+    """Application-selected permission behavior for one turn."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    mode: InteractionPolicyMode = InteractionPolicyMode.DENY_BY_DEFAULT
+
+
+class RuntimeApprovalRequest(BaseModel):
+    """Provider-neutral permission request emitted during a turn."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    request_id: str
+    permission: str
+    description: str | None = None
+    details: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("request_id", "permission", "description")
+    @classmethod
+    def validate_approval_request_text(
+        cls, value: str | None
+    ) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+
+class RuntimeApprovalDecision(BaseModel):
+    """Auditable automatic or human resolution of one permission request."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    request_id: str
+    outcome: ApprovalOutcome
+    actor: str
+    automatic: bool
+    decided_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    @field_validator("request_id", "actor")
+    @classmethod
+    def validate_approval_decision_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+
 class RuntimeTurnRequest(BaseModel):
     """Provider-neutral command for one runtime turn."""
 
@@ -550,6 +632,9 @@ class RuntimeTurnRequest(BaseModel):
     working_directory: str
     model: RuntimeModelBinding | None = None
     session: RuntimeSessionBinding | None = None
+    interaction: RuntimeInteractionPolicy = Field(
+        default_factory=RuntimeInteractionPolicy
+    )
 
     @field_validator("turn_id", "correlation_id", "working_directory")
     @classmethod

@@ -10,7 +10,7 @@
 | INV-02 | 跨边界和持久化状态都是 Pydantic BaseModel | 已自动化 |
 | INV-03 | 非法事件不改变状态或事件序列 | 已自动化 |
 | INV-04 | Runtime、Session、Turn、correlation 上下文不能漂移 | 已自动化 |
-| INV-05 | 默认测试不调用真实模型，auto 默认关闭 | 部分自动化 |
+| INV-05 | 默认测试不调用真实模型，auto 默认关闭 | 已自动化 |
 | INV-06 | `git ls-files data/` 为空 | 质量门 |
 
 ## 1. Runtime 类型与版本
@@ -64,13 +64,13 @@
 
 | ID | 回归用例 | 预期 | 状态 |
 |---|---|---|---|
-| IN-01 | 默认策略 | `deny_by_default`，不出现隐式 auto | 待实现 |
-| IN-02 | ask 且通道支持授权 | Turn 进入 `WAITING_APPROVAL` | 待实现 |
-| IN-03 | approve/reject | 使用 request ID 恢复 Turn | 待实现 |
-| IN-04 | ask 但通道不支持 | 执行前被 capability guard 拒绝 | 待实现 |
-| IN-05 | 显式 auto_approve | Adapter 才能映射为 Runtime auto 参数 | 待实现 |
-| IN-06 | 自动或人工授权 | 决策主体、时间和结果进入审计事件 | 待实现 |
-| IN-07 | cancel/timeout | 进程被回收，Turn 到达对应终态 | 待实现 |
+| IN-01 | 默认策略 | `deny_by_default`，不出现隐式 auto | 已自动化 |
+| IN-02 | ask 且通道支持授权 | Turn 进入 `WAITING_APPROVAL` | 已自动化 |
+| IN-03 | approve/reject | 使用 request ID 恢复 Turn | 已自动化 |
+| IN-04 | ask 但通道不支持 | 执行前被 capability guard 拒绝 | 已自动化 |
+| IN-05 | 显式 auto_approve | Adapter 才能映射为 Runtime auto 参数 | 已自动化 |
+| IN-06 | 自动或人工授权 | 决策主体、时间和结果进入审计事件 | 已自动化 |
+| IN-07 | cancel/timeout | 进程被回收，Turn 到达对应终态 | 已自动化 |
 
 ## 6. 执行监控与结果管理
 

@@ -80,6 +80,19 @@ deliverables:
     change: v0.05-d 模型与 effort 状态机回归
   - module: tests/test_opencode_models.py
     change: OpenCode 模型目录解析与 Adapter 回归
+  - module: src/agenty/runtime/interaction.py
+    change: 交互策略能力守卫、审批暂停/恢复和审计状态机
+    public_api:
+      - RuntimeInteractionMachine
+      - InteractionStateData
+  - module: src/agenty/runtime/protocol.py
+    change: 交互策略、审批请求/决策和审计事件公共模型
+    public_api:
+      - RuntimeInteractionPolicy
+      - RuntimeApprovalRequest
+      - RuntimeApprovalDecision
+  - module: tests/test_runtime_interaction.py
+    change: v0.05-e 默认拒绝、ask、auto、审计和恢复回归
   - module: AGENTS.md
     change: 仓库级接手顺序、架构不变量、当前进度、下一阶段和质量门
   - module: ROADMAP.md

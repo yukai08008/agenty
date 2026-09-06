@@ -33,3 +33,5 @@ v0.05-b 已实现 RuntimeEventStreamMachine 与 OpenCode 1.18.26 EventNormalizer
 v0.05-c 已实现 ProjectEnvironment、RuntimeSessionBinding、SessionMachine 和 binding catalog。resume 必须同时匹配精确 Runtime identity、Session ID 与完整 Environment；校验成功后 OpenCode Adapter 才使用 `--session`，并拒绝返回其他 Session ID。原生 `--continue`/`--fork` 不承担这一应用语义。
 
 v0.05-d 已实现 RuntimeModelSelectionMachine 和版本绑定的模型目录。模型类型/provider/model ID 与 effort 使用中立模型；未知模型、非法 effort 和 Runtime 错配在 Turn 前失败。desired 不被 Runtime 实际值覆盖，effective 只接受 integration/live 执行证据。OpenCode 1.18.26 使用 `models --verbose` 探测并映射 `--model`/`--variant`。
+
+v0.05-e 已实现 RuntimeInteractionMachine 和授权审计。RuntimeTurnRequest 默认 deny_by_default；ask 使用 request ID 暂停和恢复 Turn，自动及人工决定只在 Adapter 接收成功后记录 actor、时间和结果，等待审批有独立超时。OpenCode 1.18.26 transient_process 的 `--auto` 只由显式 auto_approve 映射；该 Channel 没有审批回复控制面，因此 ask 在启动前拒绝，cancel 由 Adapter 回收进程组。

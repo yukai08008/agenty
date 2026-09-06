@@ -12,6 +12,12 @@ from agenty.runtime.events import (
     RuntimeEventStreamStateData,
     RuntimeRawEventRecord,
 )
+from agenty.runtime.interaction import (
+    InteractionState,
+    InteractionStateData,
+    InvalidInteraction,
+    RuntimeInteractionMachine,
+)
 from agenty.runtime.machine import RuntimeProbeMachine
 from agenty.runtime.model_selection import (
     InvalidModelSelection,
@@ -22,6 +28,7 @@ from agenty.runtime.model_selection import (
     RuntimeModelSelectionMachine,
 )
 from agenty.runtime.protocol import (
+    ApprovalOutcome,
     AvailabilityEvent,
     AvailabilityState,
     CapabilityRecord,
@@ -30,12 +37,17 @@ from agenty.runtime.protocol import (
     ChannelMode,
     ChannelState,
     EvidenceLevel,
+    InteractionEvent,
+    InteractionPolicyMode,
     OutputEvent,
     ProjectEnvironment,
+    RuntimeApprovalDecision,
+    RuntimeApprovalRequest,
     RuntimeEvent,
     RuntimeFailure,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeInteractionPolicy,
     RuntimeModelBinding,
     RuntimeModelCatalog,
     RuntimeModelDescriptor,
@@ -73,6 +85,7 @@ from agenty.runtime.session import (
 from agenty.runtime.turn import InvalidTurnTransition, TurnMachine, TurnStateData
 
 __all__ = [
+    "ApprovalOutcome",
     "AvailabilityEvent",
     "AvailabilityMachine",
     "AvailabilityState",
@@ -83,7 +96,12 @@ __all__ = [
     "ChannelMode",
     "ChannelState",
     "EvidenceLevel",
+    "InteractionEvent",
+    "InteractionPolicyMode",
+    "InteractionState",
+    "InteractionStateData",
     "InvalidAvailabilityTransition",
+    "InvalidInteraction",
     "InvalidModelSelection",
     "InvalidRuntimeEventStream",
     "InvalidRuntimeSelection",
@@ -96,6 +114,8 @@ __all__ = [
     "OutputEvent",
     "ProjectEnvironment",
     "RuntimeAdapterRegistry",
+    "RuntimeApprovalDecision",
+    "RuntimeApprovalRequest",
     "RuntimeEvent",
     "RuntimeEventStreamMachine",
     "RuntimeEventStreamState",
@@ -103,6 +123,8 @@ __all__ = [
     "RuntimeFailure",
     "RuntimeFailureCode",
     "RuntimeIdentity",
+    "RuntimeInteractionMachine",
+    "RuntimeInteractionPolicy",
     "RuntimeModelBinding",
     "RuntimeModelCatalog",
     "RuntimeModelDescriptor",

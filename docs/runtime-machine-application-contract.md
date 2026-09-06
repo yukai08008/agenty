@@ -131,6 +131,10 @@ OpenCode 1.18.26 Adapter 用 `models --verbose` 建立 `probe_verified` 目录�
 
 应用表达 `ask / auto_approve / auto_reject / deny_by_default` 等策略，Adapter 再映射到 Runtime。auto 必须显式开启并审计；通道不能弹出授权时必须通过 capability 拒绝 ask 模式。
 
+v0.05-e 已实现 `RuntimeInteractionMachine`、`RuntimeInteractionPolicy`、审批请求/决策和独立审计事件。默认策略是 `deny_by_default`；实际权限请求发生后，自动批准、自动拒绝和人工决定都记录 actor、时间、结果与 request ID。支持审批往返的 Channel 可以通过 Runner 的活动交互快照发现请求，并通过 `reply_approval` 恢复 `WAITING_APPROVAL` Turn；回复只有在 Adapter 接收成功后才写入决定审计，等待超时进入 `TIMED_OUT`。取消请求通过控制信号回收运行进程并进入 `CANCELLED`。
+
+OpenCode 1.18.26 `transient_process + run --format json` 的能力边界为：显式 `auto_approve` 映射到 `--auto`；默认、`auto_reject` 和 `deny_by_default` 不添加 auto 参数；该 Channel 没有可验证的审批回复控制面，因此 `ask` 在启动前被 capability guard 拒绝。取消由 Adapter 进程控制实现，不把厂商能力推断成公共审批能力。
+
 ## 6. 执行监控与结果
 
 RuntimeMachine 将额度不足、限流、认证失败、模型不可用、超时、崩溃和非法输出归一化。最终结果包含输出、usage、failure、ArtifactManifest 与 EventLogRef，而不是只返回文本。

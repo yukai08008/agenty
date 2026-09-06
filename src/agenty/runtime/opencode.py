@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
+import signal
 import subprocess
+import time
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -12,6 +15,7 @@ from agenty.runtime.adapters import (
     RuntimeAdapterError,
     RuntimeModelAdapterError,
     RuntimeTurnAdapterError,
+    RuntimeTurnControl,
 )
 from agenty.runtime.opencode_events import OpenCodeEventNormalizer
 from agenty.runtime.opencode_models import (
@@ -19,11 +23,16 @@ from agenty.runtime.opencode_models import (
     OpenCodeModelCatalogParser,
 )
 from agenty.runtime.protocol import (
+    INTERACTION_APPROVAL_CAPABILITY,
+    INTERACTION_AUTO_APPROVE_CAPABILITY,
+    TURN_CANCEL_CAPABILITY,
     AvailabilityEvent,
     CapabilityRecord,
     CapabilitySupport,
     ChannelMode,
     EvidenceLevel,
+    InteractionPolicyMode,
+    RuntimeApprovalDecision,
     RuntimeEvent,
     RuntimeFailure,
     RuntimeFailureCode,
@@ -45,6 +54,7 @@ _OPTION_CAPABILITIES = {
     "--interactive": "channel.interactive_window",
     "--format": "output.structured",
     "--file": "input.attachments",
+    "--auto": "interaction.auto_approve",
 }
 
 
@@ -143,16 +153,42 @@ class OpenCodeRuntimeAdapter:
                 constraints = ("requires --continue or --session",)
             elif option == "--interactive":
                 constraints = ("advertised only; integration behavior unverified",)
+            support = CapabilitySupport.UNKNOWN
+            evidence = EvidenceLevel.ADVERTISED
+            evidence_source = "opencode run --help"
+            if capability == INTERACTION_AUTO_APPROVE_CAPABILITY:
+                support = CapabilitySupport.SUPPORTED
+                evidence = EvidenceLevel.INTEGRATION_VERIFIED
+                evidence_source = "OpenCode 1.18.26 adapter integration"
             records.append(
                 CapabilityRecord(
                     capability=capability,
                     runtime=runtime,
-                    support=CapabilitySupport.UNKNOWN,
-                    evidence=EvidenceLevel.ADVERTISED,
-                    evidence_source="opencode run --help",
+                    support=support,
+                    evidence=evidence,
+                    evidence_source=evidence_source,
                     constraints=constraints,
                 )
             )
+        records.extend(
+            (
+                CapabilityRecord(
+                    capability=INTERACTION_APPROVAL_CAPABILITY,
+                    runtime=runtime,
+                    support=CapabilitySupport.UNSUPPORTED,
+                    evidence=EvidenceLevel.INTEGRATION_VERIFIED,
+                    evidence_source="OpenCode 1.18.26 transient JSON integration",
+                    constraints=("no approval reply control plane",),
+                ),
+                CapabilityRecord(
+                    capability=TURN_CANCEL_CAPABILITY,
+                    runtime=runtime,
+                    support=CapabilitySupport.SUPPORTED,
+                    evidence=EvidenceLevel.INTEGRATION_VERIFIED,
+                    evidence_source="OpenCode 1.18.26 adapter process control",
+                ),
+            )
+        )
         return tuple(records)
 
     def probe_model_catalog(
@@ -192,6 +228,7 @@ class OpenCodeRuntimeAdapter:
         self,
         runtime: RuntimeIdentity,
         request: RuntimeTurnRequest,
+        control: RuntimeTurnControl,
     ) -> Iterator[RuntimeEvent]:
         self._validate_turn(runtime, request)
         command = self._turn_command(runtime, request)
@@ -203,6 +240,7 @@ class OpenCodeRuntimeAdapter:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                start_new_session=True,
             )
         except OSError as exc:
             raise RuntimeTurnAdapterError(
@@ -215,22 +253,37 @@ class OpenCodeRuntimeAdapter:
 
         yield self._turn_event(TurnEvent.TURN_ACCEPTED, runtime, request)
 
-        try:
-            stdout, stderr = process.communicate(timeout=self.timeout_seconds)
-        except subprocess.TimeoutExpired as exc:
-            process.kill()
-            _, stderr = process.communicate()
-            raise RuntimeTurnAdapterError(
-                RuntimeFailure(
-                    code=RuntimeFailureCode.TURN_TIMEOUT,
-                    message="OpenCode turn timed out",
-                    details={
-                        "timeout_seconds": self.timeout_seconds,
-                        "stderr": stderr.strip(),
-                    },
-                ),
-                timed_out=True,
-            ) from exc
+        deadline = time.monotonic() + self.timeout_seconds
+        while True:
+            if control.cancelled:
+                _, stderr = self._terminate_process(process)
+                raise RuntimeTurnAdapterError(
+                    RuntimeFailure(
+                        code=RuntimeFailureCode.TURN_FAILED,
+                        message="OpenCode turn was cancelled",
+                        details={"actor": control.actor},
+                    ),
+                    cancelled=True,
+                )
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _, stderr = self._terminate_process(process)
+                raise RuntimeTurnAdapterError(
+                    RuntimeFailure(
+                        code=RuntimeFailureCode.TURN_TIMEOUT,
+                        message="OpenCode turn timed out",
+                        details={
+                            "timeout_seconds": self.timeout_seconds,
+                            "stderr": stderr.strip(),
+                        },
+                    ),
+                    timed_out=True,
+                )
+            try:
+                stdout, stderr = process.communicate(timeout=min(0.05, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
 
         session_id = (
             request.session.session_id if request.session is not None else None
@@ -360,8 +413,38 @@ class OpenCodeRuntimeAdapter:
                 command.extend(("--variant", selection.effort))
         if request.session is not None:
             command.extend(("--session", request.session.session_id))
+        if request.interaction.mode is InteractionPolicyMode.AUTO_APPROVE:
+            command.append("--auto")
         command.extend(("--", request.prompt))
         return command
+
+    def reply_approval(self, decision: RuntimeApprovalDecision) -> None:
+        raise RuntimeTurnAdapterError(
+            RuntimeFailure(
+                code=RuntimeFailureCode.INTERACTION_UNSUPPORTED,
+                message="OpenCode transient process cannot receive approval replies",
+                details={"request_id": decision.request_id},
+            )
+        )
+
+    def _terminate_process(
+        self,
+        process: subprocess.Popen[str],
+    ) -> tuple[str, str]:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        try:
+            return process.communicate(timeout=1)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.INTERNAL,
+                    message="OpenCode process could not be reaped",
+                    details={"process_id": process.pid},
+                )
+            ) from exc
 
     def _turn_event(
         self,

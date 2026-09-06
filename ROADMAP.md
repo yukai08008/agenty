@@ -93,7 +93,7 @@ M1 完成时，应用应能：
 | v0.05-b | 厂商事件归一化与公共事件序列 | CODE_COMPLETE |
 | v0.05-c | Session new/resume 与 ProjectEnvironment binding | CODE_COMPLETE |
 | v0.05-d | 模型目录、模型/effort、desired/effective | CODE_COMPLETE |
-| v0.05-e | ask/auto/deny/cancel 与授权审计 | PLANNED |
+| v0.05-e | ask/auto/deny/cancel 与授权审计 | CODE_COMPLETE |
 | v0.05-f | 失败分类、usage、artifacts、事件日志与 TurnResult | PLANNED |
 
 v0.05 完成不等于 M1 完成；它只完成 Anna 所依赖的 RuntimeMachine 底座。
@@ -113,7 +113,7 @@ v0.05 完成不等于 M1 完成；它只完成 Anna 所依赖的 RuntimeMachine 
 
 | 能力层 | 当前程度 | M1 尚缺 |
 |---|---|---|
-| RuntimeMachine | 六类职责完成前四类 | 交互管理、监控与结果聚合 |
+| RuntimeMachine | 六类职责完成前五类 | 监控与结果聚合 |
 | AgentyMachine | 有边界与状态设计文档 | 可执行顶层状态机、Environment/Action/Reward |
 | 层级目录 | 目标结构已确认 | 根级通用组件与 `agents/anna/` 尚未建立 |
 | 记忆 | 原则已提出 | 共享/私有记忆模型、加载与写回均未实现 |

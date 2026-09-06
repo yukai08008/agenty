@@ -1,15 +1,22 @@
 import json
 import sys
+import threading
 from pathlib import Path
 
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
+    INTERACTION_AUTO_APPROVE_CAPABILITY,
+    CapabilityRecord,
+    CapabilitySupport,
     ChannelMode,
     EvidenceLevel,
+    InteractionEvent,
+    InteractionPolicyMode,
     OutputEvent,
     ProjectEnvironment,
     RuntimeFailureCode,
     RuntimeIdentity,
+    RuntimeInteractionPolicy,
     RuntimeModelBinding,
     RuntimeModelDescriptor,
     RuntimeModelRef,
@@ -110,6 +117,7 @@ def request(
     working_directory: Path,
     prompt: str = "answer briefly",
     model: RuntimeModelBinding | None = None,
+    interaction: RuntimeInteractionPolicy | None = None,
 ):
     return RuntimeTurnRequest(
         turn_id="turn-1",
@@ -117,6 +125,7 @@ def request(
         prompt=prompt,
         working_directory=str(working_directory),
         model=model,
+        interaction=interaction or RuntimeInteractionPolicy(),
     )
 
 
@@ -208,6 +217,90 @@ def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):
     assert "--session" not in invocation["args"]
     assert "--continue" not in invocation["args"]
     assert "--fork" not in invocation["args"]
+
+
+def test_explicit_auto_approve_maps_to_runtime_auto_and_is_audited(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+    capability = (
+        CapabilityRecord(
+            capability=INTERACTION_AUTO_APPROVE_CAPABILITY,
+            runtime=identity,
+            support=CapabilitySupport.SUPPORTED,
+            evidence=EvidenceLevel.INTEGRATION_VERIFIED,
+            evidence_source="test integration",
+        ),
+    )
+    turn_request = request(
+        working_directory,
+        interaction=RuntimeInteractionPolicy(
+            mode=InteractionPolicyMode.AUTO_APPROVE
+        ),
+    )
+
+    result = RuntimeTurnRunner(adapter, identity, capability).run(turn_request)
+    invocation = json.loads(invocation_path.read_text())
+
+    separator = invocation["args"].index("--")
+    assert invocation["args"][separator - 1] == "--auto"
+    assert INTERACTION_AUTO_APPROVE_CAPABILITY in {
+        record.capability for record in capability
+    }
+    policies = [
+        event
+        for event in result.events
+        if event.name is InteractionEvent.INTERACTION_POLICY_APPLIED
+    ]
+    assert policies[0].payload["policy"]["mode"] == "auto_approve"
+
+
+def test_ask_is_rejected_before_process_start_for_transient_channel(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+    turn_request = request(
+        working_directory,
+        interaction=RuntimeInteractionPolicy(mode=InteractionPolicyMode.ASK),
+    )
+
+    result = RuntimeTurnRunner(
+        adapter,
+        identity,
+        (),
+    ).run(turn_request)
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.INTERACTION_UNSUPPORTED
+    assert not invocation_path.exists()
+
+
+def test_cancel_reclaims_process_and_reaches_cancelled(tmp_path):
+    executable, _, working_directory = fake_opencode(tmp_path, delay=2)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable), timeout_seconds=5)
+    runner = RuntimeTurnRunner(adapter, identity)
+    outcome = {}
+
+    thread = threading.Thread(
+        target=lambda: outcome.update(result=runner.run(request(working_directory)))
+    )
+    thread.start()
+    for _ in range(100):
+        machine = runner._machine
+        if machine is not None and machine.state is TurnState.RUNNING:
+            break
+        threading.Event().wait(0.01)
+    runner.cancel("user:andy")
+    thread.join(timeout=2)
+
+    result = outcome["result"]
+    assert result.state is TurnState.CANCELLED
+    assert any(
+        event.name is InteractionEvent.TURN_CANCEL_REQUESTED
+        for event in result.events
+    )
 
 
 def test_resume_uses_only_validated_session_binding(tmp_path):
