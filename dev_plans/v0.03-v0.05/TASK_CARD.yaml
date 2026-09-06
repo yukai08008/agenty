@@ -80,6 +80,8 @@ deliverables:
     change: v0.05-d 模型与 effort 状态机回归
   - module: tests/test_opencode_models.py
     change: OpenCode 模型目录解析与 Adapter 回归
+  - module: AGENTS.md
+    change: 仓库级接手顺序、架构不变量、当前进度、下一阶段和质量门
 
 feature_branches:
   - name: v0.05-a

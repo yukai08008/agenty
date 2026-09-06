@@ -16,6 +16,8 @@ related:
 
 AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent 的设计、上下文和任务，后者管理具体执行环境的配置、会话和执行；双方只通过公共命令与事件协作。
 
+仓库级交接从根目录 `AGENTS.md` 开始，当前状态真相源为 `pm-state.md`。接手者先核对 Git，再按本 summary 的关系按需下钻，不能把 Vault 全量载入上下文。
+
 ## Current state
 
 - M1 目标是创建第一个可运行 Agent Anna。

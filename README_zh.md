@@ -2,6 +2,8 @@
 
 [English](README.md)
 
+> 项目正在从早期 demo CLI 演进为具有推理、记忆与多 Runtime 接入能力的 Agent 系统。当前开发进度、架构约束和接手方式分别见 [`pm-state.md`](pm-state.md) 与 [`AGENTS.md`](AGENTS.md)。下面内容主要描述现有早期 CLI。
+
 基于 uv 构建的 demo agent CLI —— 演示如何创建一个 Linux 和 macOS 上一行命令安装的 Python CLI 工具。
 
 ## 一键安装
