@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 from threading import Condition, RLock
 
@@ -13,6 +14,7 @@ from agenty.runtime.adapters import (
 from agenty.runtime.events import (
     InvalidRuntimeEventStream,
     RuntimeEventStreamMachine,
+    RuntimeEventStreamState,
     RuntimeEventStreamStateData,
 )
 from agenty.runtime.interaction import (
@@ -32,12 +34,18 @@ from agenty.runtime.protocol import (
     RuntimeIdentity,
     RuntimeTurnRequest,
     TurnEvent,
+    TurnResult,
     TurnState,
+)
+from agenty.runtime.results import (
+    RuntimeResultCollector,
+    WorkspaceSnapshot,
+    classify_failure,
+    validate_usage_event,
 )
 from agenty.runtime.turn import (
     InvalidTurnTransition,
     TurnMachine,
-    TurnStateData,
 )
 
 _TERMINAL_STATES = {
@@ -57,6 +65,7 @@ class RuntimeTurnRunner:
         runtime: RuntimeIdentity,
         capabilities: tuple[CapabilityRecord, ...] = (),
         approval_timeout_seconds: float = 300,
+        event_log_directory: str | None = None,
     ) -> None:
         self.adapter = adapter
         self.runtime = runtime
@@ -64,6 +73,7 @@ class RuntimeTurnRunner:
         if approval_timeout_seconds <= 0:
             raise ValueError("approval_timeout_seconds must be positive")
         self.approval_timeout_seconds = approval_timeout_seconds
+        self.result_collector = RuntimeResultCollector(event_log_directory)
         self._last_event_stream: RuntimeEventStreamStateData | None = None
         self._last_interaction: InteractionStateData | None = None
         self._machine: TurnMachine | None = None
@@ -92,7 +102,7 @@ class RuntimeTurnRunner:
                 return None
             return self._interaction.snapshot()
 
-    def run(self, request: RuntimeTurnRequest) -> TurnStateData:
+    def run(self, request: RuntimeTurnRequest) -> TurnResult:
         with self._lock:
             if self._machine is not None:
                 raise RuntimeError("runner already has an active turn")
@@ -128,17 +138,76 @@ class RuntimeTurnRunner:
             self._control = control
 
         try:
-            policy_event = interaction.prepare(self.capabilities)
-            self._apply(
+            return self._run_active(
+                request,
                 machine,
                 stream,
-                policy_event,
+                interaction,
+                control,
             )
+        finally:
+            with self._lock:
+                if stream.state is RuntimeEventStreamState.ACTIVE:
+                    stream.close()
+                interaction.close()
+                self._last_event_stream = stream.snapshot()
+                self._last_interaction = interaction.snapshot()
+                if self._machine is machine:
+                    self._machine = None
+                    self._stream = None
+                    self._interaction = None
+                    self._control = None
+
+    def _run_active(
+        self,
+        request: RuntimeTurnRequest,
+        machine: TurnMachine,
+        stream: RuntimeEventStreamMachine,
+        interaction: RuntimeInteractionMachine,
+        control: RuntimeTurnControl,
+    ) -> TurnResult:
+        workspace_before = WorkspaceSnapshot.unavailable(
+            request.working_directory
+        )
+        try:
+            workspace_before = WorkspaceSnapshot.capture(
+                request.working_directory
+            )
+            with self._lock:
+                if control.cancelled:
+                    raise RuntimeTurnAdapterError(
+                        RuntimeFailure(
+                            code=RuntimeFailureCode.TURN_FAILED,
+                            message="runtime turn was cancelled before submission",
+                            details={"actor": control.actor},
+                        ),
+                        cancelled=True,
+                    )
+                policy_event = interaction.prepare(self.capabilities)
+                self._apply(
+                    machine,
+                    stream,
+                    policy_event,
+                )
+            pending_terminal = None
             for event in self.adapter.iter_turn_events(
                 self.runtime,
                 request,
                 control,
             ):
+                event = self._prepare_adapter_event(event)
+                if pending_terminal is not None:
+                    raise InvalidTurnTransition(
+                        "runtime adapter emitted an event after a terminal event"
+                    )
+                if event.name in {
+                    TurnEvent.TURN_SUCCEEDED,
+                    TurnEvent.TURN_FAILED,
+                    TurnEvent.TURN_CANCELLED,
+                    TurnEvent.TURN_TIMED_OUT,
+                }:
+                    pending_terminal = event
+                    continue
                 self._apply(machine, stream, event)
                 if event.name is TurnEvent.TURN_WAITING_FOR_APPROVAL:
                     try:
@@ -196,6 +265,18 @@ class RuntimeTurnRunner:
                                 ),
                                 cancelled=True,
                             )
+            if pending_terminal is not None:
+                with self._lock:
+                    if control.cancelled:
+                        raise RuntimeTurnAdapterError(
+                            RuntimeFailure(
+                                code=RuntimeFailureCode.TURN_FAILED,
+                                message="runtime turn was cancelled before completion",
+                                details={"actor": control.actor},
+                            ),
+                            cancelled=True,
+                        )
+                    self._apply(machine, stream, pending_terminal)
         except RuntimeTurnAdapterError as exc:
             if exc.cancelled:
                 self._apply(
@@ -212,11 +293,12 @@ class RuntimeTurnRunner:
                     machine,
                     stream,
                     request,
-                    exc.failure,
+                    classify_failure(exc.failure),
                     exc.timed_out,
+                    raw_event=exc.raw_event,
                 )
         except InvalidInteraction as exc:
-            failure = exc.failure or RuntimeFailure(
+            failure = classify_failure(exc.failure) if exc.failure else RuntimeFailure(
                 code=RuntimeFailureCode.INVALID_OUTPUT,
                 message="runtime interaction was invalid",
                 details={"error": str(exc)},
@@ -275,15 +357,12 @@ class RuntimeTurnRunner:
             )
         stream.close()
         interaction.close()
-        with self._lock:
-            self._last_event_stream = stream.snapshot()
-            self._last_interaction = interaction.snapshot()
-            if self._machine is machine:
-                self._machine = None
-                self._stream = None
-                self._interaction = None
-                self._control = None
-        return machine.snapshot()
+        return self.result_collector.build(
+            self.runtime,
+            machine.snapshot(),
+            stream.snapshot(),
+            workspace_before,
+        )
 
     def reply_approval(
         self,
@@ -331,7 +410,10 @@ class RuntimeTurnRunner:
         request: RuntimeTurnRequest,
         failure: RuntimeFailure,
         timed_out: bool,
+        *,
+        raw_event: object | None = None,
     ) -> None:
+        failure = classify_failure(failure)
         name = (
             TurnEvent.TURN_TIMED_OUT
             if timed_out and machine.state is not TurnState.SUBMITTING
@@ -345,6 +427,10 @@ class RuntimeTurnRunner:
                 request,
                 session_id=machine.data.session_id,
                 payload={"failure": failure},
+                source_reference=(
+                    "adapter-invalid-output" if raw_event is not None else None
+                ),
+                raw_event=raw_event,
             ),
         )
 
@@ -363,6 +449,36 @@ class RuntimeTurnRunner:
             ).append(event)
             machine.validate(preview)
             machine.apply(stream.append(event))
+
+    def _prepare_adapter_event(self, event: RuntimeEvent) -> RuntimeEvent:
+        if event.name in {TurnEvent.TURN_FAILED, TurnEvent.TURN_TIMED_OUT}:
+            failure = event.payload.get("failure")
+            if isinstance(failure, RuntimeFailure):
+                event = event.model_copy(
+                    update={
+                        "payload": {
+                            **event.payload,
+                            "failure": classify_failure(failure),
+                        }
+                    }
+                )
+        try:
+            json.dumps(
+                event.model_dump(mode="json"),
+                allow_nan=False,
+                sort_keys=True,
+            )
+            validate_usage_event(event)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.INVALID_OUTPUT,
+                    message="runtime adapter emitted non-persistable event data",
+                    details={"error": str(exc)},
+                ),
+                raw_event=event.raw_event,
+            ) from exc
+        return event
 
     def _active_turn(
         self,
@@ -386,7 +502,15 @@ class RuntimeTurnRunner:
         *,
         session_id: str | None = None,
         payload: dict | None = None,
+        source_reference: str | None = None,
+        raw_event: object | None = None,
     ) -> RuntimeEvent:
+        if raw_event is not None:
+            try:
+                json.dumps(raw_event, allow_nan=False)
+            except (TypeError, ValueError):
+                raw_event = None
+                source_reference = None
         return RuntimeEvent(
             name=name,
             runtime=self.runtime,
@@ -394,4 +518,6 @@ class RuntimeTurnRunner:
             turn_id=request.turn_id,
             session_id=session_id,
             payload=payload or {},
+            source_reference=source_reference,
+            raw_event=raw_event,
         )

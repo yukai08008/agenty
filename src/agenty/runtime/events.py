@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from agenty.runtime.protocol import RuntimeEvent, RuntimeIdentity
 
@@ -22,7 +31,17 @@ class RuntimeRawEventRecord(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     sequence: int = Field(ge=1)
-    data: Any
+    source_reference: str | None = None
+    data: JsonValue
+
+    @field_validator("data")
+    @classmethod
+    def validate_json_data(cls, value: JsonValue) -> JsonValue:
+        try:
+            json.dumps(value, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("raw event must be strict JSON") from exc
+        return value
 
 
 class RuntimeEventStreamStateData(BaseModel):
@@ -123,10 +142,17 @@ class RuntimeEventStreamMachine:
         )
         raw_events = self._data.raw_events
         if event.raw_event is not None:
-            raw_events = (
-                *raw_events,
-                RuntimeRawEventRecord(sequence=sequence, data=event.raw_event),
-            )
+            try:
+                record = RuntimeRawEventRecord(
+                    sequence=sequence,
+                    source_reference=event.source_reference,
+                    data=event.raw_event,
+                )
+            except ValidationError as exc:
+                raise InvalidRuntimeEventStream(
+                    "raw event must be JSON-compatible"
+                ) from exc
+            raw_events = (*raw_events, record)
         session_id = self._data.session_id or event.session_id
         self._replace(
             session_id=session_id,

@@ -25,6 +25,7 @@ _TRANSITIONS = {
     (TurnState.CREATED, TurnEvent.TURN_SUBMISSION_STARTED): TurnState.SUBMITTING,
     (TurnState.SUBMITTING, TurnEvent.TURN_ACCEPTED): TurnState.RUNNING,
     (TurnState.SUBMITTING, TurnEvent.TURN_FAILED): TurnState.FAILED,
+    (TurnState.SUBMITTING, TurnEvent.TURN_CANCELLED): TurnState.CANCELLED,
     (TurnState.RUNNING, TurnEvent.TURN_WAITING_FOR_INPUT): (
         TurnState.WAITING_INPUT
     ),

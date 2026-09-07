@@ -139,6 +139,18 @@ OpenCode 1.18.26 `transient_process + run --format json` 的能力边界为：�
 
 RuntimeMachine 将额度不足、限流、认证失败、模型不可用、超时、崩溃和非法输出归一化。最终结果包含输出、usage、failure、ArtifactManifest 与 EventLogRef，而不是只返回文本。
 
+v0.05-f 已实现以下公共结果边界：
+
+- `RuntimeUsage` 聚合输入、输出、reasoning、cache token、费用和 provider evidence reference；畸形、负数、布尔值或非有限费用不能静默变成零。
+- `RuntimeFailure` 区分 rate limit、quota、authentication、model unavailable、timeout、crash 和 invalid output。OpenCode 1.18.26 的安全 reason 比通用 HTTP/text 启发式优先，`FreeUsageLimitError` 映射为 rate limited。
+- `ArtifactManifest` 保存 Turn 前后普通文件内容差异的相对路径、media type、大小与 SHA-256。文件系统观察不能证明生产者，因此当前 producer 为 `unknown:filesystem_observation`。
+- `EventLogRef` 指向每次执行独立目录中的 normalized/raw JSONL，记录 SHA-256 和事件数量；目录和文件分别以 `0700`、`0600` 创建，配置目录不安全或不可写时使用私有临时目录。
+- `TurnResult` 同时保存请求、终态、Session、输出、usage、failure、artifacts、事件和日志引用。JSON 恢复时重新校验请求上下文、连续 sequence、终态事件、failure、输出与 usage 的一致性。
+
+Runner 的活动生命周期由外层 `finally` 清理；工作区扫描、Adapter、失败事件构造或结果存储异常都不能把 Runner 永久留在 active。Adapter 的终态事件在事件源结束后提交，因此终态后的额外事件会被识别为非法输出，而不是形成自相矛盾的结果。
+
+当前边界不宣称完整因果审计：事件日志是终态后的 evidence export，不是逐事件 fsync 的 crash-safe journal；ArtifactManifest 不记录删除、symlink 或仅元数据变化，也不能排除执行期间其他进程的文件修改。`scan_complete` 与 `limitations` 用于向消费者暴露这些限制。原始证据目前没有长期 retention、redaction 或 cleanup policy。
+
 ## 实施顺序
 
 ```mermaid

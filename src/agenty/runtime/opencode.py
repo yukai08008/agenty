@@ -307,11 +307,20 @@ class OpenCodeRuntimeAdapter:
                 if session_id is not None and event_session != session_id:
                     raise self.event_normalizer.invalid_output(
                         "OpenCode changed sessionID during one turn",
+                        raw_event=raw,
                         line_number=line_number,
                     )
                 session_id = event_session
 
+            usage = self.event_normalizer.usage_event(
+                raw,
+                runtime,
+                request,
+                line_number=line_number,
+            )
             yield normalized
+            if usage is not None:
+                yield usage
             if raw.get("type") == "error":
                 runtime_error = raw
 

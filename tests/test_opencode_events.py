@@ -111,3 +111,112 @@ def test_normalizer_rejects_other_runtime_version():
 
     assert caught.value.failure.code is RuntimeFailureCode.INVALID_OUTPUT
     assert caught.value.failure.details["expected_version"] == "1.18.26"
+
+
+def test_step_finish_usage_is_normalized_without_vendor_fields():
+    raw = {
+        "type": "step_finish",
+        "sessionID": "session-1",
+        "part": {
+            "tokens": {
+                "input": 10,
+                "output": 4,
+                "reasoning": 2,
+                "cache": {"read": 3, "write": 1},
+            },
+            "cost": 0.0025,
+        },
+    }
+
+    event = OpenCodeEventNormalizer().usage_event(
+        raw,
+        runtime(),
+        request(),
+        line_number=7,
+    )
+
+    assert event is not None
+    assert event.name is OutputEvent.USAGE_REPORTED
+    assert event.payload == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "reasoning_tokens": 2,
+        "cache_read_tokens": 3,
+        "cache_write_tokens": 1,
+        "cost": 0.0025,
+        "provider_reference": "opencode-jsonl:7",
+    }
+    assert event.raw_event is None
+    assert event.source_reference == "opencode-jsonl:7"
+
+
+@pytest.mark.parametrize(
+    ("tokens", "field"),
+    [
+        ({"input": -1}, "tokens.input"),
+        ({"output": "4"}, "tokens.output"),
+        ({"reasoning": True}, "tokens.reasoning"),
+        ({"cache": {"read": -1}}, "tokens.cache.read"),
+        ("bad", "tokens"),
+        ({"cache": "bad"}, "tokens.cache"),
+    ],
+)
+def test_invalid_step_finish_usage_is_not_silently_zeroed(tokens, field):
+    raw = {
+        "type": "step_finish",
+        "sessionID": "session-1",
+        "part": {"tokens": tokens},
+    }
+
+    with pytest.raises(RuntimeTurnAdapterError) as caught:
+        OpenCodeEventNormalizer().usage_event(
+            raw,
+            runtime(),
+            request(),
+            line_number=7,
+        )
+
+    assert caught.value.failure.code is RuntimeFailureCode.INVALID_OUTPUT
+    assert caught.value.failure.details == {"line_number": 7, "field": field}
+    assert caught.value.raw_event == raw
+
+
+def test_non_finite_usage_cost_is_invalid_output():
+    raw = {
+        "type": "step_finish",
+        "sessionID": "session-1",
+        "part": {"cost": float("nan")},
+    }
+
+    with pytest.raises(RuntimeTurnAdapterError) as caught:
+        OpenCodeEventNormalizer().usage_event(
+            raw,
+            runtime(),
+            request(),
+            line_number=7,
+        )
+
+    assert caught.value.failure.code is RuntimeFailureCode.INVALID_OUTPUT
+    assert caught.value.failure.details["field"] == "cost"
+
+
+def test_opencode_error_extracts_safe_version_bound_reason():
+    details = OpenCodeEventNormalizer().error_details(
+        {
+            "error": {
+                "name": "APIError",
+                "data": {
+                    "message": "provider request failed",
+                    "responseBody": '{"name":"FreeUsageLimitError","secret":"x"}',
+                    "isRetryable": True,
+                },
+            }
+        }
+    )
+
+    assert details == {
+        "error_type": "APIError",
+        "message": "provider request failed",
+        "retryable": True,
+        "reason": "FreeUsageLimitError",
+    }

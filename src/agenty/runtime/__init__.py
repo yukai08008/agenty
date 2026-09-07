@@ -29,6 +29,7 @@ from agenty.runtime.model_selection import (
 )
 from agenty.runtime.protocol import (
     ApprovalOutcome,
+    ArtifactManifest,
     AvailabilityEvent,
     AvailabilityState,
     CapabilityRecord,
@@ -36,6 +37,7 @@ from agenty.runtime.protocol import (
     ChannelEvent,
     ChannelMode,
     ChannelState,
+    EventLogRef,
     EvidenceLevel,
     InteractionEvent,
     InteractionPolicyMode,
@@ -43,6 +45,7 @@ from agenty.runtime.protocol import (
     ProjectEnvironment,
     RuntimeApprovalDecision,
     RuntimeApprovalRequest,
+    RuntimeArtifact,
     RuntimeEvent,
     RuntimeFailure,
     RuntimeFailureCode,
@@ -58,10 +61,12 @@ from agenty.runtime.protocol import (
     RuntimeSnapshot,
     RuntimeTarget,
     RuntimeTurnRequest,
+    RuntimeUsage,
     SessionEvent,
     SessionOpenMode,
     SessionState,
     TurnEvent,
+    TurnResult,
     TurnState,
 )
 from agenty.runtime.runner import RuntimeTurnRunner
@@ -86,6 +91,7 @@ from agenty.runtime.turn import InvalidTurnTransition, TurnMachine, TurnStateDat
 
 __all__ = [
     "ApprovalOutcome",
+    "ArtifactManifest",
     "AvailabilityEvent",
     "AvailabilityMachine",
     "AvailabilityState",
@@ -95,6 +101,7 @@ __all__ = [
     "ChannelEvent",
     "ChannelMode",
     "ChannelState",
+    "EventLogRef",
     "EvidenceLevel",
     "InteractionEvent",
     "InteractionPolicyMode",
@@ -116,6 +123,7 @@ __all__ = [
     "RuntimeAdapterRegistry",
     "RuntimeApprovalDecision",
     "RuntimeApprovalRequest",
+    "RuntimeArtifact",
     "RuntimeEvent",
     "RuntimeEventStreamMachine",
     "RuntimeEventStreamState",
@@ -146,6 +154,7 @@ __all__ = [
     "RuntimeTarget",
     "RuntimeTurnRequest",
     "RuntimeTurnRunner",
+    "RuntimeUsage",
     "SessionBindingCatalogState",
     "SessionEvent",
     "SessionMachine",
@@ -154,6 +163,7 @@ __all__ = [
     "SessionStateData",
     "TurnEvent",
     "TurnMachine",
+    "TurnResult",
     "TurnState",
     "TurnStateData",
 ]

@@ -1,6 +1,6 @@
 # v0.05 TEST_CASES — RuntimeMachine 六类职责回归
 
-状态：先冻结全部回归范围；按 v0.05-a → f 顺序逐类实现。未实现的用例标记为“待实现”，不能被误报为通过。
+状态：v0.05-a → f 六类职责均已自动化；真实模型用例仍需显式开启，不能由默认回归冒充 live 证据。
 
 ## 0. 跨类不变量
 
@@ -76,11 +76,11 @@
 
 | ID | 回归用例 | 预期 | 状态 |
 |---|---|---|---|
-| RS-01 | HTTP 429 / FreeUsageLimit | `rate_limited`，保留 retryable | 已部分自动化 |
-| RS-02 | 额度耗尽、认证失败、模型不可用 | 使用不同公共失败代码 | 待实现 |
-| RS-03 | Runtime 崩溃、非零退出、超时 | 终态和失败原因一致 | 已部分自动化 |
-| RS-04 | usage 事件 | 聚合 token、费用及 provider 原始引用 | 待实现 |
-| RS-05 | 文件产物 | ArtifactManifest 包含路径、类型、大小、digest、producer | 待实现 |
-| RS-06 | 事件日志 | EventLogRef 可定位归一化日志和原始证据 | 待实现 |
-| RS-07 | TurnResult | 聚合状态、输出、usage、failure、artifacts 和日志 | 待实现 |
-| RS-08 | 终态结果 JSON 往返 | 不可变、可持久化、可审计 | 待实现 |
+| RS-01 | HTTP 429 / FreeUsageLimit | `rate_limited`，保留 retryable | 已自动化 |
+| RS-02 | 额度耗尽、认证失败、模型不可用 | 使用不同公共失败代码 | 已自动化 |
+| RS-03 | Runtime 崩溃、非零退出、超时 | 终态和失败原因一致 | 已自动化 |
+| RS-04 | usage 事件 | 聚合 token、费用及 provider 原始引用 | 已自动化 |
+| RS-05 | 文件产物 | ArtifactManifest 包含路径、类型、大小、digest、producer | 已自动化 |
+| RS-06 | 事件日志 | EventLogRef 可定位归一化日志和原始证据 | 已自动化 |
+| RS-07 | TurnResult | 聚合状态、输出、usage、failure、artifacts 和日志 | 已自动化 |
+| RS-08 | 终态结果 JSON 往返 | 不可变、可持久化、可审计 | 已自动化 |

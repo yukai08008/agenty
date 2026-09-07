@@ -93,6 +93,23 @@ deliverables:
       - RuntimeApprovalDecision
   - module: tests/test_runtime_interaction.py
     change: v0.05-e 默认拒绝、ask、auto、审计和恢复回归
+  - module: src/agenty/runtime/results.py
+    change: 终态结果聚合、失败分类、usage、文件系统变化观察和事件证据输出
+    public_api:
+      - RuntimeResultCollector
+      - WorkspaceSnapshot
+      - classify_failure
+      - aggregate_usage
+  - module: src/agenty/runtime/protocol.py
+    change: 不可变 usage、artifact manifest、事件日志引用和 TurnResult 公共模型
+    public_api:
+      - RuntimeUsage
+      - RuntimeArtifact
+      - ArtifactManifest
+      - EventLogRef
+      - TurnResult
+  - module: tests/test_runtime_results.py
+    change: v0.05-f 失败、usage、artifact、日志与 JSON 恢复回归
   - module: AGENTS.md
     change: 仓库级接手顺序、架构不变量、当前进度、下一阶段和质量门
   - module: ROADMAP.md

@@ -2,14 +2,19 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from agenty.runtime.protocol import (
+    ArtifactManifest,
     AvailabilityEvent,
     AvailabilityState,
     ChannelEvent,
     ChannelMode,
     ChannelState,
+    EventLogRef,
     InteractionEvent,
     OutputEvent,
+    RuntimeArtifact,
     RuntimeEvent,
+    RuntimeFailure,
+    RuntimeFailureCode,
     RuntimeIdentity,
     RuntimeInteractionPolicy,
     RuntimeModelBinding,
@@ -20,9 +25,11 @@ from agenty.runtime.protocol import (
     RuntimeSnapshot,
     RuntimeTarget,
     RuntimeTurnRequest,
+    RuntimeUsage,
     SessionEvent,
     SessionState,
     TurnEvent,
+    TurnResult,
     TurnState,
 )
 
@@ -99,6 +106,11 @@ def test_public_protocol_has_no_vendor_specific_fields():
         RuntimeModelCatalog,
         RuntimeModelBinding,
         RuntimeInteractionPolicy,
+        RuntimeUsage,
+        RuntimeArtifact,
+        ArtifactManifest,
+        EventLogRef,
+        TurnResult,
     )
     field_names = {
         field_name.lower()
@@ -122,6 +134,11 @@ def test_public_protocol_models_use_pydantic_and_round_trip_json():
         RuntimeModelCatalog,
         RuntimeModelBinding,
         RuntimeInteractionPolicy,
+        RuntimeUsage,
+        RuntimeArtifact,
+        ArtifactManifest,
+        EventLogRef,
+        TurnResult,
     )
     assert all(issubclass(model, BaseModel) for model in public_models)
 
@@ -147,6 +164,21 @@ def test_public_protocol_rejects_unknown_fields():
                 "runtime_kind": "fake",
                 "vendor_option": True,
             }
+        )
+
+
+def test_runtime_failure_details_require_strict_json():
+    with pytest.raises(ValidationError, match="strict JSON"):
+        RuntimeFailure(
+            code=RuntimeFailureCode.INTERNAL,
+            message="failed",
+            details={"opaque": object()},
+        )
+    with pytest.raises(ValidationError, match="strict JSON"):
+        RuntimeFailure(
+            code=RuntimeFailureCode.INTERNAL,
+            message="failed",
+            details={"cost": float("nan")},
         )
 
 

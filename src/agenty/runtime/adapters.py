@@ -36,10 +36,12 @@ class RuntimeTurnAdapterError(RuntimeError):
         *,
         timed_out: bool = False,
         cancelled: bool = False,
+        raw_event: object | None = None,
     ) -> None:
         self.failure = failure
         self.timed_out = timed_out
         self.cancelled = cancelled
+        self.raw_event = raw_event
         super().__init__(failure.message)
 
 

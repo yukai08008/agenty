@@ -6,8 +6,11 @@ start a runtime, apply transitions, or contain vendor-specific configuration.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
+from decimal import Decimal
 from enum import Enum
+from pathlib import Path, PurePosixPath
 from typing import Any, TypeAlias
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -171,6 +174,11 @@ class RuntimeFailureCode(str, Enum):
     EFFORT_UNSUPPORTED = "runtime_effort_unsupported"
     MODEL_CATALOG_INVALID = "runtime_model_catalog_invalid"
     INTERACTION_UNSUPPORTED = "runtime_interaction_unsupported"
+    RATE_LIMITED = "runtime_rate_limited"
+    QUOTA_EXHAUSTED = "runtime_quota_exhausted"
+    AUTHENTICATION_FAILED = "runtime_authentication_failed"
+    MODEL_UNAVAILABLE = "runtime_model_unavailable"
+    RUNTIME_CRASH = "runtime_crash"
 
 
 RuntimeEventName: TypeAlias = (
@@ -314,7 +322,17 @@ class RuntimeFailure(BaseModel):
 
     code: RuntimeFailureCode
     message: str
+    retryable: bool | None = None
     details: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("details")
+    @classmethod
+    def validate_details(cls, value: dict[str, Any]) -> dict[str, Any]:
+        try:
+            json.dumps(value, allow_nan=False, sort_keys=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("failure details must be strict JSON") from exc
+        return value
 
 
 class SessionOpenMode(str, Enum):
@@ -332,9 +350,7 @@ class ProjectEnvironment(BaseModel):
     working_directory: str
     revision: str | None = None
 
-    @field_validator(
-        "environment_id", "project_id", "working_directory", "revision"
-    )
+    @field_validator("environment_id", "project_id", "revision")
     @classmethod
     def validate_environment_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -343,6 +359,14 @@ class ProjectEnvironment(BaseModel):
         if not value:
             raise ValueError("value must not be empty")
         return value
+
+    @field_validator("working_directory")
+    @classmethod
+    def normalize_environment_directory(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("working_directory must not be empty")
+        return str(Path(value).expanduser().resolve())
 
 
 class RuntimeSessionRequest(BaseModel):
@@ -621,6 +645,254 @@ class RuntimeApprovalDecision(BaseModel):
         return value
 
 
+class RuntimeUsage(BaseModel):
+    """Aggregated token and cost observations for one turn."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    reasoning_tokens: int = Field(default=0, ge=0)
+    cache_read_tokens: int = Field(default=0, ge=0)
+    cache_write_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+    cost: Decimal = Field(default=Decimal(0), ge=0)
+    currency: str = "USD"
+    provider_references: tuple[str, ...] = ()
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, value: str) -> str:
+        value = value.strip().upper()
+        if not value:
+            raise ValueError("currency must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_total(self) -> "RuntimeUsage":
+        observed = (
+            self.input_tokens
+            + self.output_tokens
+            + self.reasoning_tokens
+            + self.cache_read_tokens
+            + self.cache_write_tokens
+        )
+        if self.total_tokens == 0 and observed:
+            object.__setattr__(self, "total_tokens", observed)
+        elif self.total_tokens != observed:
+            raise ValueError("total_tokens must equal the observed token sum")
+        return self
+
+
+class RuntimeArtifact(BaseModel):
+    """One regular file whose content differs from the pre-turn snapshot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    path: str
+    media_type: str
+    size_bytes: int = Field(ge=0)
+    sha256: str
+    producer: str
+
+    @field_validator("path", "media_type", "sha256", "producer")
+    @classmethod
+    def validate_artifact_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("value must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_artifact(self) -> "RuntimeArtifact":
+        path = PurePosixPath(self.path)
+        if path.is_absolute() or ".." in path.parts or "\\" in self.path:
+            raise ValueError("artifact path must stay relative to its root")
+        if len(self.sha256) != 64 or any(
+            character not in "0123456789abcdef"
+            for character in self.sha256.lower()
+        ):
+            raise ValueError("sha256 must be a 64-character hexadecimal digest")
+        return self
+
+
+class ArtifactManifest(BaseModel):
+    """Immutable, scoped observation of regular-file content changes."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    root_directory: str
+    artifacts: tuple[RuntimeArtifact, ...] = ()
+    scan_complete: bool = True
+    limitations: tuple[str, ...] = (
+        "deletions, symlinks, and metadata-only changes are not represented",
+        "producer attribution is not inferred from filesystem changes",
+    )
+
+    @field_validator("root_directory")
+    @classmethod
+    def validate_root_directory(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("root_directory must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_unique_paths(self) -> "ArtifactManifest":
+        paths = [artifact.path for artifact in self.artifacts]
+        if len(paths) != len(set(paths)):
+            raise ValueError("artifact paths must be unique")
+        return self
+
+
+class EventLogRef(BaseModel):
+    """Locations and digests for normalized and raw event evidence."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    normalized_path: str
+    normalized_sha256: str
+    normalized_event_count: int = Field(ge=0)
+    raw_path: str
+    raw_sha256: str
+    raw_event_count: int = Field(ge=0)
+    format: str = "jsonl"
+
+    @field_validator(
+        "normalized_path",
+        "normalized_sha256",
+        "raw_path",
+        "raw_sha256",
+        "format",
+    )
+    @classmethod
+    def validate_log_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("event log value must not be empty")
+        return value
+
+    @model_validator(mode="after")
+    def validate_log_reference(self) -> "EventLogRef":
+        for digest in (self.normalized_sha256, self.raw_sha256):
+            if len(digest) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in digest.lower()
+            ):
+                raise ValueError("event log digest must be hexadecimal sha256")
+        if self.format != "jsonl":
+            raise ValueError("event log format must be jsonl")
+        return self
+
+
+class TurnResult(BaseModel):
+    """Immutable auditable result returned for one terminal turn."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    runtime: RuntimeIdentity
+    turn_id: str
+    correlation_id: str
+    request: RuntimeTurnRequest
+    state: TurnState
+    session_id: str | None = None
+    output_text: str = ""
+    usage: RuntimeUsage = Field(default_factory=RuntimeUsage)
+    failure: RuntimeFailure | None = None
+    artifacts: ArtifactManifest
+    event_log: EventLogRef
+    events: tuple[RuntimeEvent, ...] = ()
+
+    @model_validator(mode="after")
+    def validate_terminal_result(self) -> "TurnResult":
+        if self.state not in {
+            TurnState.SUCCEEDED,
+            TurnState.FAILED,
+            TurnState.CANCELLED,
+            TurnState.TIMED_OUT,
+        }:
+            raise ValueError("turn result requires a terminal state")
+        if self.state in {TurnState.FAILED, TurnState.TIMED_OUT}:
+            if self.failure is None:
+                raise ValueError("failed turn result requires failure")
+        elif self.failure is not None:
+            raise ValueError("successful or cancelled result cannot hold failure")
+        if (
+            self.turn_id != self.request.turn_id
+            or self.correlation_id != self.request.correlation_id
+        ):
+            raise ValueError("turn result context must match its request")
+        if self.artifacts.root_directory != self.request.working_directory:
+            raise ValueError("artifact root must match the request working directory")
+        if self.event_log.normalized_event_count != len(self.events):
+            raise ValueError("normalized event count must match result events")
+        expected_sequences = list(range(1, len(self.events) + 1))
+        if [event.sequence for event in self.events] != expected_sequences:
+            raise ValueError("result event sequence must be contiguous")
+        for event in self.events:
+            if (
+                event.runtime != self.runtime
+                or event.turn_id != self.turn_id
+                or event.correlation_id != self.correlation_id
+                or (
+                    event.session_id is not None
+                    and event.session_id != self.session_id
+                )
+            ):
+                raise ValueError("result event context must match the turn result")
+        if not self.events:
+            raise ValueError("turn result requires an event history")
+        terminal_events = {
+            TurnState.SUCCEEDED: TurnEvent.TURN_SUCCEEDED,
+            TurnState.FAILED: TurnEvent.TURN_FAILED,
+            TurnState.CANCELLED: TurnEvent.TURN_CANCELLED,
+            TurnState.TIMED_OUT: TurnEvent.TURN_TIMED_OUT,
+        }
+        terminal = self.events[-1]
+        if terminal.name is not terminal_events[self.state]:
+            raise ValueError("turn result state must match its terminal event")
+        terminal_failure = terminal.payload.get("failure")
+        if (
+            self.failure is not None
+            and RuntimeFailure.model_validate(terminal_failure) != self.failure
+        ):
+            raise ValueError("turn result failure must match its terminal event")
+        expected_output = "".join(
+            str(event.payload.get("text", ""))
+            for event in self.events
+            if event.name is OutputEvent.TEXT_EMITTED
+        )
+        if self.output_text != expected_output:
+            raise ValueError("turn result output must match its events")
+        totals = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "reasoning_tokens": 0,
+            "cache_read_tokens": 0,
+            "cache_write_tokens": 0,
+        }
+        cost = Decimal(0)
+        references = []
+        for event in self.events:
+            if event.name is not OutputEvent.USAGE_REPORTED:
+                continue
+            for field in totals:
+                totals[field] += event.payload.get(field, 0)
+            cost += Decimal(str(event.payload.get("cost", 0)))
+            reference = event.payload.get("provider_reference")
+            if isinstance(reference, str) and reference not in references:
+                references.append(reference)
+        expected_usage = RuntimeUsage(
+            **totals,
+            total_tokens=sum(totals.values()),
+            cost=cost,
+            provider_references=tuple(references),
+        )
+        if self.usage != expected_usage:
+            raise ValueError("turn result usage must match its events")
+        return self
+
+
 class RuntimeTurnRequest(BaseModel):
     """Provider-neutral command for one runtime turn."""
 
@@ -636,7 +908,7 @@ class RuntimeTurnRequest(BaseModel):
         default_factory=RuntimeInteractionPolicy
     )
 
-    @field_validator("turn_id", "correlation_id", "working_directory")
+    @field_validator("turn_id", "correlation_id")
     @classmethod
     def validate_request_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -645,6 +917,14 @@ class RuntimeTurnRequest(BaseModel):
         if not value:
             raise ValueError("value must not be empty")
         return value
+
+    @field_validator("working_directory")
+    @classmethod
+    def normalize_working_directory(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("working_directory must not be empty")
+        return str(Path(value).expanduser().resolve())
 
     @field_validator("prompt")
     @classmethod
@@ -681,6 +961,7 @@ class RuntimeEvent(BaseModel):
         default_factory=lambda: datetime.now(timezone.utc)
     )
     payload: dict[str, Any] = Field(default_factory=dict)
+    source_reference: str | None = None
     raw_event: Any | None = None
 
 

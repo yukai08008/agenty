@@ -2,7 +2,7 @@
 id: agenty-state-machines
 type: summary
 status: active
-updated: 2026-09-06
+updated: 2026-09-07
 tags: [agenty, state-machine, runtime]
 related:
   - "[[dual-machine-boundary]]"
@@ -30,6 +30,7 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 - v0.05-c 已实现独立 SessionMachine；Runtime Session 只有与 ProjectEnvironment 建立不可变 binding 后才能接续，OpenCode 的 `--session` 只是通过公共校验后的厂商映射。
 - v0.05-d 已实现模型目录和 RuntimeModelSelectionMachine；模型/effort 在执行前按精确 Runtime 目录校验，desired 与有执行证据的 effective 分离保存。
 - v0.05-e 已实现 RuntimeInteractionMachine；权限策略默认拒绝，ask/auto/deny/cancel 和自动/人工决策可审计。OpenCode 1.18.26 transient JSON Channel 只支持显式 auto 与进程取消，不支持审批往返。
+- v0.05-f 已实现失败分类、usage、ArtifactManifest、EventLogRef 和不可变 TurnResult；RuntimeMachine 六类应用职责底座完成。结果恢复会校验事件与聚合字段一致性，Runner 异常后不会遗留 active Turn。
 - 第一次顶层校准确定 AgentyMachine 使用 `RESOLVING_RUNTIME` 消费公共 RuntimeSnapshot，并通过 capability 守卫接受或阻断。
 - OpenCode 1.18.26 的能力分析表明 RuntimeMachine 应聚合 Availability、Channel、Session、Turn 四个状态机；能力必须绑定版本、通道和证据等级。
 - v0.01-a 已把 Runtime 状态与事件基线落成中立公共协议；四类状态独立，事件带关联上下文，快照只读聚合，尚未实现运行行为。

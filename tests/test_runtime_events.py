@@ -76,6 +76,26 @@ def test_event_stream_assigns_contiguous_sequence_and_isolates_raw_data():
     assert machine.data.raw_events[0].data["vendorField"] is True
 
 
+def test_event_stream_rejects_non_json_raw_evidence_without_mutation():
+    machine = stream()
+    before = machine.snapshot()
+
+    with pytest.raises(InvalidRuntimeEventStream, match="JSON-compatible"):
+        machine.append(event(raw_event={"invalid": object()}))
+
+    assert machine.snapshot() == before
+
+
+def test_event_stream_rejects_non_finite_raw_evidence_without_mutation():
+    machine = stream()
+    before = machine.snapshot()
+
+    with pytest.raises(InvalidRuntimeEventStream, match="JSON-compatible"):
+        machine.append(event(raw_event={"invalid": float("nan")}))
+
+    assert machine.snapshot() == before
+
+
 @pytest.mark.parametrize(
     "bad_event",
     [

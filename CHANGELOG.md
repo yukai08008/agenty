@@ -11,6 +11,35 @@
 
 ## Unreleased — v0.05 RuntimeMachine 六类应用职责
 
+### v0.05-f — 监控与结果（CODE_COMPLETE, live verified，2026-09-07）
+
+Added:
+
+- Runtime 中立的 `RuntimeUsage`、`RuntimeArtifact`、`ArtifactManifest`、`EventLogRef` 和不可变 `TurnResult`。
+- 限流、额度耗尽、认证失败、模型不可用和 Runtime crash 公共失败代码，以及保留明确 retryable 证据的分类器。
+- OpenCode 1.18.26 `step_finish` token/cost 归一化和安全的 `FreeUsageLimitError`、认证及模型错误 reason 提取。
+- 每次执行独立的 normalized/raw JSONL 证据目录、摘要、事件数量和严格 JSON 边界。
+
+Changed:
+
+- `RuntimeTurnRunner.run()` 返回终态 `TurnResult`，并保证 snapshot、Adapter、结果输出或异常处理失败后释放活动 Turn。
+- Adapter 直接发出的失败终态与异常失败使用同一分类路径；终态后的额外事件转换为 `invalid_output`。
+- RuntimeTurnRequest 和 ProjectEnvironment 将工作目录规范化为绝对路径，避免持久化结果随恢复进程 cwd 漂移。
+- 文件产物只表达 Turn 前后观察到的普通文件内容差异，producer 固定为 `unknown:filesystem_observation`，不把并发文件变化错误归因给 Runtime。
+
+Validation:
+
+- 累计默认回归：183 passed、1 个 live 测试 skipped。
+- RS-01 至 RS-08 已自动化；覆盖 429/FreeUsageLimit、quota/auth/model/crash/timeout、usage 聚合、证据隔离、日志路径碰撞、提交期取消、异常清理和 TurnResult JSON 恢复一致性。
+- `compileall`、涉及文件 Ruff、`git diff --check` 和 `git ls-files data/` 门禁通过。
+- OpenCode 1.18.26 transient_process 已通过一次真实磁盘使用检查：Turn 成功、Session/usage/normalized 与 raw 日志均可追踪，ArtifactManifest 完整且无文件变化；失败分支仍由公共合同测试与假进程 integration 覆盖。
+
+Limitations:
+
+- JSONL 是终态后的证据导出，不是进程崩溃时逐事件落盘的耐久 journal。
+- ArtifactManifest 不表示删除、symlink 或仅元数据变化；文件扫描可能受执行外并发写入影响，并通过 `scan_complete` 与 `limitations` 暴露边界。
+- 原始事件日志可能含敏感诊断数据；当前使用私有目录和文件权限，但尚无长期保留、清理或脱敏策略。
+
 ### v0.05-e — 交互管理（CODE_COMPLETE，2026-09-06）
 
 Added:

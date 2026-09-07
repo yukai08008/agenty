@@ -47,7 +47,19 @@ def fake_opencode(
             "sessionID": "session-1",
             "part": {"text": "done"},
         },
-        {"type": "step_finish", "sessionID": "session-1", "part": {}},
+        {
+            "type": "step_finish",
+            "sessionID": "session-1",
+            "part": {
+                "tokens": {
+                    "input": 10,
+                    "output": 4,
+                    "reasoning": 2,
+                    "cache": {"read": 3, "write": 1},
+                },
+                "cost": 0.0025,
+            },
+        },
     ]
     if mode == "error":
         events = [
@@ -182,6 +194,11 @@ def test_fake_opencode_drives_successful_session_bound_turn(tmp_path):
     stream = runner.last_event_stream
     assert stream is not None
     assert len(stream.raw_events) == 3
+    assert result.output_text == "done"
+    assert result.usage.total_tokens == 20
+    assert str(result.usage.cost) == "0.0025"
+    assert result.event_log.normalized_event_count == len(result.events)
+    assert result.event_log.raw_event_count == 3
 
 
 def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):
@@ -389,7 +406,8 @@ def test_runtime_error_event_fails_turn(tmp_path):
 
     assert result.state is TurnState.FAILED
     assert result.failure is not None
-    assert result.failure.code is RuntimeFailureCode.TURN_FAILED
+    assert result.failure.code is RuntimeFailureCode.RATE_LIMITED
+    assert result.failure.retryable is True
     assert result.failure.details == {
         "error_type": "APIError",
         "message": "model failed",
@@ -434,6 +452,40 @@ def test_malformed_json_fails_turn(tmp_path):
     assert result.state is TurnState.FAILED
     assert result.failure is not None
     assert result.failure.code is RuntimeFailureCode.INVALID_OUTPUT
+    assert result.failure.details == {"line_number": 1}
+    raw_records = [
+        json.loads(line)
+        for line in Path(result.event_log.raw_path).read_text().splitlines()
+    ]
+    assert raw_records[-1]["data"] == "not-json"
+    assert raw_records[-1]["source_reference"] == "adapter-invalid-output"
+
+
+def test_invalid_usage_fails_turn_and_preserves_raw_evidence(tmp_path):
+    executable, _, working_directory = fake_opencode(tmp_path)
+    executable.write_text(
+        f"#!{sys.executable}\n"
+        "import json\n"
+        "print(json.dumps({"
+        "'type': 'step_finish', 'sessionID': 'session-1', "
+        "'part': {'tokens': {'input': -1}}}))\n"
+    )
+    executable.chmod(0o755)
+
+    result = run_turn(executable, working_directory)
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.INVALID_OUTPUT
+    assert result.failure.details == {
+        "line_number": 1,
+        "field": "tokens.input",
+    }
+    raw_records = [
+        json.loads(line)
+        for line in Path(result.event_log.raw_path).read_text().splitlines()
+    ]
+    assert raw_records[-1]["data"]["part"]["tokens"]["input"] == -1
 
 
 def test_nonzero_exit_fails_turn_even_after_valid_output(tmp_path):
@@ -443,7 +495,8 @@ def test_nonzero_exit_fails_turn_even_after_valid_output(tmp_path):
 
     assert result.state is TurnState.FAILED
     assert result.failure is not None
-    assert result.failure.code is RuntimeFailureCode.TURN_FAILED
+    assert result.failure.code is RuntimeFailureCode.RUNTIME_CRASH
+    assert result.failure.retryable is False
     assert result.failure.details["returncode"] == 7
 
 
