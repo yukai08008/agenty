@@ -9,6 +9,36 @@
 - `probe verified`：只完成无副作用探测，不代表实际执行能力。
 - 当前版本位置见 `pm-state.md`，未来目标见 `ROADMAP.md`。
 
+## Unreleased - v0.06 Minimal Runtime-backed CLI
+
+### v0.06-a - `agenty run`（CODE_COMPLETE, live verified，2026-09-08）
+
+Added:
+
+- `run_opencode_task()` 应用入口：通过 RuntimeAdapterRegistry、RuntimeSelectionMachine 和 RuntimeTurnRunner 选择精确 OpenCode 1.18.26 并执行一次 Turn。
+- `agenty run TASK...`，支持 `-C/--directory`、`--auto-approve`、`--timeout`、`--opencode` 和 `--json`。
+- CLI 退出码合同：成功为 0、Turn 非成功终态为 1、Turn 前设置失败为 2、用户中断为 130。
+
+Changed:
+
+- 早期 `greet/think/status` 固定 demo 被真实自然语言 Runtime 任务替代。
+- deny 模式禁用项目配置、外部技能和默认插件，通过专用 Agent 的 `permission: deny` 与 `--pure` 执行，并在 Turn 前解析和复验最终配置，确保所有 MCP disabled 且权限未被 ambient/managed 配置覆盖；验证失败时拒绝启动 Turn。
+- OpenCode 子进程使用独立进程组，并在 CLI 中断、timeout 或 cancel 时回收，避免后台遗留执行。
+- 人类输出展示 Runtime、Session、usage、文件变化和证据日志；JSON 模式输出完整不可变 TurnResult。
+
+Validation:
+
+- 累计默认回归：204 passed、1 个显式 live 测试默认 skipped。
+- deny 模式 live 验证中，OpenCode 1.18.26 明确报告无 Shell 工具可用，仍返回可审计成功 Turn、Session、usage、零文件变化和日志。
+- 显式 `--auto-approve` live 验证成功执行只读 `df`：Session `ses_f7f113ccaffeDMDRNqeqVKpgog`、23292 tokens、0 USD、0 个文件变化，并生成 normalized/raw 日志。
+- 较宽的只读代码审查任务在显式 180 秒限制下到达 `turn_timeout`，CLI 正确返回非成功终态、退出码 1、零文件变化和事件证据；它不计作成功验收。
+
+Limitations:
+
+- CLI 尚不支持 AgentyMachine、Anna、分层配置/记忆/技能、模型/effort 选择或 Session resume。
+- OpenCode transient_process 没有中途审批往返；需要工具时用户必须理解并显式选择 `--auto-approve`。
+- 结果和事件日志仍是单次执行的本地证据，没有长期 retention 或 cleanup policy。
+
 ## Unreleased — v0.05 RuntimeMachine 六类应用职责
 
 ### v0.05-f — 监控与结果（CODE_COMPLETE, live verified，2026-09-07）

@@ -2,7 +2,7 @@
 
 > 状态：ACTIVE
 >
-> 最近更新：2026-09-07
+> 最近更新：2026-09-08
 >
 > 路线图是真正的产品目标与阶段顺序；实时开发位置见 `pm-state.md`，历史变化见 `CHANGELOG.md`。
 
@@ -98,11 +98,19 @@ M1 完成时，应用应能：
 
 v0.05 完成不等于 M1 完成；它只完成 Anna 所依赖的 RuntimeMachine 底座。
 
+### v0.06 - 最小应用入口（ACTIVE）
+
+| 功能分支 | 范围 | 状态 |
+|---|---|---|
+| v0.06-a | `agenty run` 自然语言任务、精确 OpenCode 选择、显式 auto、结果展示与 JSON 输出 | CODE_COMPLETE, live verified |
+
+v0.06 只让用户直接体验 RuntimeMachine；它不是 AgentyMachine、Anna、记忆或技能的替代品。
+
 ## 6. M1 后续阶段（版本号尚未冻结）
 
 版本号和边界必须在上一版本验收后由用户确认，以下只固定依赖顺序：
 
-1. **根级基础能力与 AgentyMachine**：配置、Agent identity、目标、Environment、Action/Strategy、Reward 接口。
+1. **根级基础能力与 AgentyMachine**：在最小 `agenty run` 入口之上加入配置、Agent identity、目标、Environment、Action/Strategy、Reward 接口。
 2. **层级加载协议**：根级约束与具体 Agent 局部约束的合并、优先级、路径安全和可观测结果。
 3. **记忆与技能**：`MEMORY.md`、共享 `memory/skills`、Agent 私有范围、读取与写回策略。
 4. **Anna 定义**：创建 `agents/anna/`，明确 Anna 的职责、记忆、技能和默认 Runtime 策略。
@@ -113,7 +121,7 @@ v0.05 完成不等于 M1 完成；它只完成 Anna 所依赖的 RuntimeMachine 
 
 | 能力层 | 当前程度 | M1 尚缺 |
 |---|---|---|
-| RuntimeMachine | 六类应用职责底座已完成 | 后续真实通道扩展、长期存储与 AgentyMachine 编排 |
+| RuntimeMachine | 六类应用职责底座已完成，并有最小 CLI 入口 | 后续真实通道扩展、长期存储与 AgentyMachine 编排 |
 | AgentyMachine | 有边界与状态设计文档 | 可执行顶层状态机、Environment/Action/Reward |
 | 层级目录 | 目标结构已确认 | 根级通用组件与 `agents/anna/` 尚未建立 |
 | 记忆 | 原则已提出 | 共享/私有记忆模型、加载与写回均未实现 |

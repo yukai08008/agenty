@@ -2,7 +2,7 @@
 id: runtime-application-contract
 type: decision
 status: active
-updated: 2026-09-07
+updated: 2026-09-08
 tags: [agenty, runtime, application-contract, state-machine]
 part_of:
   - "[[agenty-state-machines]]"
@@ -39,3 +39,9 @@ v0.05-e 已实现 RuntimeInteractionMachine 和授权审计。RuntimeTurnRequest
 v0.05-f 已实现 RuntimeUsage、ArtifactManifest、EventLogRef 和不可变 TurnResult。公共失败分类覆盖 rate limit、quota、authentication、model unavailable、timeout、crash 与 invalid output；OpenCode 1.18.26 的安全 reason 优先于通用启发式。Runner 返回前导出独立 normalized/raw JSONL 证据，并在所有异常路径释放活动 Turn。TurnResult JSON 恢复重新校验请求、事件 sequence、终态、failure、输出和 usage 一致性。
 
 ArtifactManifest 当前是普通文件内容差异观察，不是 Runtime 因果证明：producer 为 unknown，删除、symlink、元数据变化和执行外并发写入不在完整表达范围。EventLogRef 当前引用终态后的证据导出，不是 crash-safe journal；raw evidence 尚无长期 retention、cleanup 或 redaction policy。这些限制不能被后续文档提升为 live 或耐久存储能力。
+
+## Minimal application entry point
+
+v0.06-a 用 `run_opencode_task()` 和 `agenty run` 将上述公共合同组合成最小用户入口。组合顺序是精确 Runtime selection -> capability snapshot -> RuntimeTurnRequest -> RuntimeTurnRunner -> TurnResult；CLI 不直接拼接或启动厂商命令。默认权限禁用项目配置、默认插件与外部技能，通过专用 primary Agent、`permission: deny` 和 `--pure` 强制生效；Adapter 先解析全部 ambient MCP 名称并逐项 disabled，再复验最终 resolved config，任何 managed override 都会使 Turn fail closed。只有显式 `--auto-approve` 才移除该限制并申请工具自动批准。配置预检、Turn、中断、timeout 和 cancel 均使用可回收的独立 OpenCode 进程组。
+
+该入口已有三类 live 证据：deny 模式下模型明确报告无 Shell 工具；显式 auto 下只读 `df` Turn 成功并返回 Session、usage、零文件变化与日志引用；更宽的只读审查任务触发 180 秒 timeout，并保留结构化失败和日志。此处只证明 RuntimeMachine 可被用户直接调用，不证明 AgentyMachine、Anna、记忆或技能已经完成。

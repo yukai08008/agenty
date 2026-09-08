@@ -1,0 +1,76 @@
+milestone: M1-Anna
+version: v0.06
+parent_final: null
+parent_baseline: "v0.05-f@8586376"
+title: Minimal Runtime-backed CLI
+type: user-facing
+prd: dev_plans/v0.05-v0.06/PRD.md
+test_cases: dev_plans/v0.05-v0.06/TEST_CASES.md
+
+invariants:
+  - "CLI uses public RuntimeMachine selection and execution contracts"
+  - "OpenCode is selected by exact version 1.18.26"
+  - "effective OpenCode tool permission is denied unless auto approval is explicit"
+  - "default tests do not call a real model"
+  - "runtime data is not tracked by git"
+
+deliverables:
+  - module: src/agenty/run.py
+    change: Compose exact Runtime selection and one Runtime Turn for application callers
+    public_api:
+      - run_opencode_task
+      - AgentyRunError
+  - module: src/agenty/cli.py
+    change: Replace fixed demo run choices with natural-language Runtime execution
+    public_api:
+      - agenty run
+  - module: tests/test_run.py
+    change: Offline application composition and exact-version regression
+  - module: tests/test_cli.py
+    change: CLI arguments, output mode, and exit-code regression
+  - module: README.md
+    change: English command usage and current product boundary
+  - module: README_zh.md
+    change: Chinese command usage and current product boundary
+
+feature_branches:
+  - name: v0.06-a
+    title: Minimal Runtime-backed run command
+    deps: [v0.05-f]
+    acceptance:
+      - "CLI-01 natural-language task reaches RuntimeTurnRunner"
+      - "CLI-02 exact OpenCode version mismatch fails before execution"
+      - "CLI-03 auto approval is opt-in"
+      - "CLI-04 working directory and timeout are explicit"
+      - "CLI-05 JSON output exposes the complete TurnResult"
+      - "CLI-06 terminal state maps to a meaningful exit code"
+      - "CLI-07 default tests remain offline"
+      - "CLI-08 one real OpenCode task succeeds through the CLI"
+
+acceptance_count: 8
+
+risk_register:
+  - id: R1
+    risk: CLI silently broadens permissions
+    mitigation: explicit --auto-approve only
+    severity: high
+  - id: R2
+    risk: CLI bypasses exact Runtime selection
+    mitigation: compose RuntimeSelectionMachine and RuntimeTurnRunner
+    severity: high
+  - id: R3
+    risk: Runtime wrapper is mistaken for completed Anna
+    mitigation: document the product boundary
+    severity: medium
+
+git_workflow:
+  branch_creation: from v0.05-f@8586376
+  feature_order: v0.06-a
+  before_push_checks:
+    - "pytest all PASS"
+    - "compileall PASS"
+    - "ruff touched files PASS"
+    - "git diff --check PASS"
+    - "git ls-files data/ | wc -l == 0"
+
+signature: Agent-PM-v0.06

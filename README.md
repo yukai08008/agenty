@@ -2,7 +2,7 @@
 
 [中文文档](README_zh.md)
 
-> Agenty is evolving from the early demo CLI into an agent system with reasoning, memory, and multiple runtime adapters. See [`ROADMAP.md`](ROADMAP.md) for goals, [`pm-state.md`](pm-state.md) for current progress, [`CHANGELOG.md`](CHANGELOG.md) for completed changes, and [`AGENTS.md`](AGENTS.md) for the handoff contract. The content below primarily describes the existing early CLI.
+> Agenty is evolving from the early demo CLI into an agent system with reasoning, memory, and multiple runtime adapters. `agenty run` now exposes the OpenCode 1.18.26 RuntimeMachine foundation, but it is not yet the complete Anna agent. See [`ROADMAP.md`](ROADMAP.md) for goals, [`pm-state.md`](pm-state.md) for current progress, [`CHANGELOG.md`](CHANGELOG.md) for completed changes, and [`AGENTS.md`](AGENTS.md) for the handoff contract.
 
 A demo agent CLI built with uv — showcasing how to create a Python CLI tool that installs on both Linux and macOS with a single command.
 
@@ -36,11 +36,14 @@ agenty --version
 agenty hello
 agenty hello Alice
 
-# Run demo agent tasks
-agenty run           # default: greet
-agenty run greet     # say hi
-agenty run think     # deep thoughts
-agenty run status    # system status
+# Run a natural-language task with exact OpenCode 1.18.26
+agenty run "Summarize this repository"
+
+# Allow non-interactive tool execution for this Turn
+agenty run "Inspect disk usage without changing files" --auto-approve
+
+# Bind a different working directory and print the full TurnResult JSON
+agenty run "Review this project" -C /path/to/project --json
 
 # Start interactive chat
 agenty chat
@@ -50,6 +53,14 @@ agenty --help
 ```
 
 ## How It Works
+
+`agenty run` selects exact OpenCode 1.18.26, probes its capabilities, builds a RuntimeTurnRequest, and returns an auditable TurnResult containing the terminal state, output, Session, usage, changed-file observations, and normalized/raw evidence-log references. Tool automation is disabled unless `--auto-approve` is explicitly supplied.
+
+The command currently provides a minimal Runtime-backed application entry point. AgentyMachine, Anna identity, hierarchical memory/skills, and long-term result storage remain under development.
+
+Run `agenty run --help` for timeout, executable-path, working-directory, and JSON options.
+
+## Installation
 
 The install script (`install.sh`) does three things:
 

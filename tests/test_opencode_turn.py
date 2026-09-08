@@ -3,6 +3,7 @@ import sys
 import threading
 from pathlib import Path
 
+from agenty.runtime.adapters import RuntimeTurnControl
 from agenty.runtime.opencode import OpenCodeRuntimeAdapter
 from agenty.runtime.protocol import (
     INTERACTION_AUTO_APPROVE_CAPABILITY,
@@ -24,6 +25,7 @@ from agenty.runtime.protocol import (
     RuntimeSessionBinding,
     RuntimeTurnRequest,
     SessionOpenMode,
+    TurnEvent,
     TurnState,
 )
 from agenty.runtime.runner import RuntimeTurnRunner
@@ -80,8 +82,20 @@ def fake_opencode(
         f"#!{sys.executable}\n"
         "import json, os, pathlib, sys, time\n"
         f"INVOCATION = pathlib.Path({str(invocation)!r})\n"
+        "if sys.argv[1:3] == ['debug', 'config']:\n"
+        "    config = json.loads(os.environ.get('OPENCODE_CONFIG_CONTENT', '{}'))\n"
+        "    base = {'mcp': {'test-mcp': {'type': 'local', "
+        "'command': ['false'], 'enabled': True}}}\n"
+        "    base.update(config)\n"
+        "    if 'mcp' in config:\n"
+        "        base['mcp'] = {**base['mcp'], **config['mcp']}\n"
+        "    print(json.dumps(base))\n"
+        "    raise SystemExit(0)\n"
         "INVOCATION.write_text(json.dumps({"
-        "'args': sys.argv[1:], 'cwd': os.getcwd()}))\n"
+        "'args': sys.argv[1:], 'cwd': os.getcwd(), "
+        "'disable_project_config': "
+        "os.environ.get('OPENCODE_DISABLE_PROJECT_CONFIG'), "
+        "'config_content': os.environ.get('OPENCODE_CONFIG_CONTENT')}))\n"
         f"time.sleep({delay!r})\n"
         + (
             "print('not-json')\n"
@@ -162,6 +176,18 @@ def resume_request(
     )
 
 
+def inline_fake_opencode(events: str) -> str:
+    return (
+        f"#!{sys.executable}\n"
+        "import json, os, sys\n"
+        "if sys.argv[1:3] == ['debug', 'config']:\n"
+        "    config = json.loads(os.environ.get('OPENCODE_CONFIG_CONTENT', '{}'))\n"
+        "    print(json.dumps(config))\n"
+        "    raise SystemExit(0)\n"
+        f"{events}\n"
+    )
+
+
 def run_turn(executable: Path, working_directory: Path, timeout: float = 5):
     identity = runtime(executable)
     adapter = OpenCodeRuntimeAdapter(
@@ -226,6 +252,9 @@ def test_command_binds_directory_and_separates_option_like_prompt(tmp_path):
         "provider/model",
         "--variant",
         "high",
+        "--pure",
+        "--agent",
+        "agenty-deny-by-default",
         "--",
         "--auto",
     ]
@@ -261,6 +290,8 @@ def test_explicit_auto_approve_maps_to_runtime_auto_and_is_audited(tmp_path):
 
     separator = invocation["args"].index("--")
     assert invocation["args"][separator - 1] == "--auto"
+    assert "--agent" not in invocation["args"][:separator]
+    assert "--pure" not in invocation["args"][:separator]
     assert INTERACTION_AUTO_APPROVE_CAPABILITY in {
         record.capability for record in capability
     }
@@ -270,6 +301,188 @@ def test_explicit_auto_approve_maps_to_runtime_auto_and_is_audited(tmp_path):
         if event.name is InteractionEvent.INTERACTION_POLICY_APPLIED
     ]
     assert policies[0].payload["policy"]["mode"] == "auto_approve"
+
+
+def test_deny_by_default_injects_highest_priority_permission_policy(tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+    turn_request = request(working_directory)
+
+    environment = adapter._turn_environment(
+        identity,
+        turn_request,
+        RuntimeTurnControl(),
+    )
+    config = json.loads(environment["OPENCODE_CONFIG_CONTENT"])
+    result = RuntimeTurnRunner(adapter, identity).run(turn_request)
+    invocation = json.loads(invocation_path.read_text())
+
+    assert result.state is TurnState.SUCCEEDED
+    assert config["agent"]["agenty-deny-by-default"]["permission"] == "deny"
+    assert config["mcp"]["test-mcp"]["enabled"] is False
+    assert invocation["disable_project_config"] == "1"
+    separator = invocation["args"].index("--")
+    assert invocation["args"][:separator][-3:] == [
+        "--pure",
+        "--agent",
+        "agenty-deny-by-default",
+    ]
+
+
+def test_invalid_inline_config_fails_closed_before_process_start(
+    monkeypatch,
+    tmp_path,
+):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    monkeypatch.setenv("OPENCODE_CONFIG_CONTENT", "not-json")
+
+    result = RuntimeTurnRunner(
+        OpenCodeRuntimeAdapter(str(executable)), identity
+    ).run(request(working_directory))
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.TURN_REJECTED
+    assert not invocation_path.exists()
+
+
+def test_interrupt_reclaims_active_process(monkeypatch, tmp_path):
+    executable, _, _ = fake_opencode(tmp_path)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+
+    class InterruptedProcess:
+        def communicate(self, timeout):
+            raise KeyboardInterrupt
+
+        def poll(self):
+            return None
+
+    stopped = []
+    monkeypatch.setattr(
+        adapter,
+        "_terminate_process",
+        lambda process: stopped.append(process) or ("", ""),
+    )
+
+    try:
+        adapter._wait_for_process(InterruptedProcess(), RuntimeTurnControl())
+    except KeyboardInterrupt:
+        pass
+    else:
+        raise AssertionError("interrupt was not propagated")
+
+    assert len(stopped) == 1
+
+
+def test_closing_generator_after_acceptance_reclaims_process(monkeypatch, tmp_path):
+    executable, _, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable), timeout_seconds=5)
+    stopped = []
+
+    class HangingProcess:
+        def poll(self):
+            return None
+
+    process = HangingProcess()
+    monkeypatch.setattr(
+        "agenty.runtime.opencode.subprocess.Popen",
+        lambda *args, **kwargs: process,
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_terminate_process",
+        lambda active: stopped.append(active) or ("", ""),
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_resolved_config",
+        lambda *args: {
+            "agent": {
+                "agenty-deny-by-default": {"permission": {"*": "deny"}}
+            },
+            "mcp": {},
+        },
+    )
+    events = adapter.iter_turn_events(
+        identity,
+        request(working_directory),
+        RuntimeTurnControl(),
+    )
+
+    assert next(events).name is TurnEvent.TURN_ACCEPTED
+    events.close()
+
+    assert stopped == [process]
+
+
+def test_ambient_override_of_deny_agent_fails_closed(monkeypatch, tmp_path):
+    executable, invocation_path, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable))
+    resolved = iter(
+        (
+            {"mcp": {}},
+            {
+                "agent": {
+                    "agenty-deny-by-default": {"permission": {"*": "allow"}}
+                },
+                "mcp": {},
+            },
+        )
+    )
+    monkeypatch.setattr(
+        adapter,
+        "_resolved_config",
+        lambda *args: next(resolved),
+    )
+
+    result = RuntimeTurnRunner(adapter, identity).run(request(working_directory))
+
+    assert result.state is TurnState.FAILED
+    assert result.failure is not None
+    assert result.failure.code is RuntimeFailureCode.TURN_REJECTED
+    assert not invocation_path.exists()
+
+
+def test_safe_config_probe_uses_process_group_and_bounded_timeout(
+    monkeypatch,
+    tmp_path,
+):
+    executable, _, working_directory = fake_opencode(tmp_path)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(str(executable), timeout_seconds=5)
+    observed = {}
+
+    class FinishedProcess:
+        returncode = 0
+
+    process = FinishedProcess()
+
+    def fake_popen(command, **kwargs):
+        observed.update(command=command, **kwargs)
+        return process
+
+    monkeypatch.setattr("agenty.runtime.opencode.subprocess.Popen", fake_popen)
+    monkeypatch.setattr(
+        adapter,
+        "_wait_for_process",
+        lambda active, control, **kwargs: (
+            observed.update(wait=kwargs) or ('{"mcp": {}}', "")
+        ),
+    )
+
+    adapter._resolved_config(
+        identity,
+        request(working_directory),
+        {},
+        RuntimeTurnControl(),
+    )
+
+    assert observed["start_new_session"] is True
+    assert observed["wait"]["timeout_seconds"] == 5
 
 
 def test_ask_is_rejected_before_process_start_for_transient_channel(tmp_path):
@@ -331,9 +544,12 @@ def test_resume_uses_only_validated_session_binding(tmp_path):
     invocation = json.loads(invocation_path.read_text())
 
     assert result.state is TurnState.SUCCEEDED
-    assert invocation["args"][-4:] == [
+    session_index = invocation["args"].index("--session")
+    assert invocation["args"][session_index : session_index + 2] == [
         "--session",
         "session-1",
+    ]
+    assert invocation["args"][-2:] == [
         "--",
         "answer briefly",
     ]
@@ -381,11 +597,10 @@ def test_model_binding_for_another_runtime_is_rejected_before_start(tmp_path):
 def test_resume_rejects_runtime_output_from_another_session(tmp_path):
     executable, _, working_directory = fake_opencode(tmp_path)
     executable.write_text(
-        f"#!{sys.executable}\n"
-        "import json\n"
-        "print(json.dumps({"
-        "'type': 'text', 'sessionID': 'session-2', "
-        "'part': {'text': 'wrong session'}}))\n"
+        inline_fake_opencode(
+            "print(json.dumps({'type': 'text', 'sessionID': 'session-2', "
+            "'part': {'text': 'wrong session'}}))"
+        )
     )
     executable.chmod(0o755)
     identity = runtime(executable)
@@ -423,11 +638,10 @@ def test_runtime_error_event_fails_turn(tmp_path):
 def test_tool_error_is_normalized_as_tool_failed(tmp_path):
     executable, _, working_directory = fake_opencode(tmp_path)
     executable.write_text(
-        f"#!{sys.executable}\n"
-        "import json\n"
-        "print(json.dumps({"
-        "'type': 'tool_use', 'sessionID': 'session-1', "
-        "'part': {'tool': 'write', 'state': {'status': 'error'}}}))\n"
+        inline_fake_opencode(
+            "print(json.dumps({'type': 'tool_use', 'sessionID': 'session-1', "
+            "'part': {'tool': 'write', 'state': {'status': 'error'}}}))"
+        )
     )
     executable.chmod(0o755)
 
@@ -464,11 +678,10 @@ def test_malformed_json_fails_turn(tmp_path):
 def test_invalid_usage_fails_turn_and_preserves_raw_evidence(tmp_path):
     executable, _, working_directory = fake_opencode(tmp_path)
     executable.write_text(
-        f"#!{sys.executable}\n"
-        "import json\n"
-        "print(json.dumps({"
-        "'type': 'step_finish', 'sessionID': 'session-1', "
-        "'part': {'tokens': {'input': -1}}}))\n"
+        inline_fake_opencode(
+            "print(json.dumps({'type': 'step_finish', 'sessionID': 'session-1', "
+            "'part': {'tokens': {'input': -1}}}))"
+        )
     )
     executable.chmod(0o755)
 
@@ -503,7 +716,31 @@ def test_nonzero_exit_fails_turn_even_after_valid_output(tmp_path):
 def test_timeout_terminates_process_and_times_out_turn(tmp_path):
     executable, _, working_directory = fake_opencode(tmp_path, delay=1)
 
-    result = run_turn(executable, working_directory, timeout=0.01)
+    identity = runtime(executable)
+    adapter = OpenCodeRuntimeAdapter(
+        str(executable),
+        timeout_seconds=0.01,
+    )
+    result = RuntimeTurnRunner(
+        adapter,
+        identity,
+        (
+            CapabilityRecord(
+                capability=INTERACTION_AUTO_APPROVE_CAPABILITY,
+                runtime=identity,
+                support=CapabilitySupport.SUPPORTED,
+                evidence=EvidenceLevel.INTEGRATION_VERIFIED,
+                evidence_source="test integration",
+            ),
+        ),
+    ).run(
+        request(
+            working_directory,
+            interaction=RuntimeInteractionPolicy(
+                mode=InteractionPolicyMode.AUTO_APPROVE
+            ),
+        )
+    )
 
     assert result.state is TurnState.TIMED_OUT
     assert result.failure is not None

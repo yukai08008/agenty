@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 import os
 import re
 import shutil
@@ -44,6 +46,8 @@ from agenty.runtime.protocol import (
 
 _VERSION = re.compile(r"\b\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?\b")
 _SUPPORTED_VERSIONS = frozenset({"1.18.26"})
+_CONFIG_CONTENT_ENV = "OPENCODE_CONFIG_CONTENT"
+_DENY_AGENT = "agenty-deny-by-default"
 
 _OPTION_CAPABILITIES = {
     "--model": "model.selection",
@@ -71,6 +75,8 @@ class OpenCodeRuntimeAdapter:
         timeout_seconds: float = 5,
         supported_versions: frozenset[str] | None = None,
     ) -> None:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive and finite")
         self.executable = executable
         self.timeout_seconds = timeout_seconds
         self.supported_versions = supported_versions or _SUPPORTED_VERSIONS
@@ -232,6 +238,7 @@ class OpenCodeRuntimeAdapter:
     ) -> Iterator[RuntimeEvent]:
         self._validate_turn(runtime, request)
         command = self._turn_command(runtime, request)
+        environment = self._turn_environment(runtime, request, control)
         try:
             process = subprocess.Popen(
                 command,
@@ -241,6 +248,7 @@ class OpenCodeRuntimeAdapter:
                 stderr=subprocess.PIPE,
                 text=True,
                 start_new_session=True,
+                env=environment,
             )
         except OSError as exc:
             raise RuntimeTurnAdapterError(
@@ -251,109 +259,83 @@ class OpenCodeRuntimeAdapter:
                 )
             ) from exc
 
-        yield self._turn_event(TurnEvent.TURN_ACCEPTED, runtime, request)
+        try:
+            yield self._turn_event(TurnEvent.TURN_ACCEPTED, runtime, request)
 
-        deadline = time.monotonic() + self.timeout_seconds
-        while True:
-            if control.cancelled:
-                _, stderr = self._terminate_process(process)
+            stdout, stderr = self._wait_for_process(process, control)
+
+            session_id = (
+                request.session.session_id if request.session is not None else None
+            )
+            saw_event = False
+            runtime_error = None
+            for line_number, line in enumerate(stdout.splitlines(), start=1):
+                if not line.strip():
+                    continue
+                normalized = self.event_normalizer.normalize_json_line(
+                    line,
+                    runtime,
+                    request,
+                    line_number=line_number,
+                )
+                raw = normalized.raw_event
+                assert isinstance(raw, dict)
+                saw_event = True
+                event_session = normalized.session_id
+                if event_session:
+                    if session_id is not None and event_session != session_id:
+                        raise self.event_normalizer.invalid_output(
+                            "OpenCode changed sessionID during one turn",
+                            raw_event=raw,
+                            line_number=line_number,
+                        )
+                    session_id = event_session
+
+                usage = self.event_normalizer.usage_event(
+                    raw,
+                    runtime,
+                    request,
+                    line_number=line_number,
+                )
+                yield normalized
+                if usage is not None:
+                    yield usage
+                if raw.get("type") == "error":
+                    runtime_error = raw
+
+            if not saw_event or session_id is None:
+                raise self.event_normalizer.invalid_output(
+                    "OpenCode turn produced no session-bound JSON events"
+                )
+            if runtime_error is not None:
                 raise RuntimeTurnAdapterError(
                     RuntimeFailure(
                         code=RuntimeFailureCode.TURN_FAILED,
-                        message="OpenCode turn was cancelled",
-                        details={"actor": control.actor},
-                    ),
-                    cancelled=True,
+                        message="OpenCode reported a runtime error",
+                        details=self.event_normalizer.error_details(runtime_error),
+                    )
                 )
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                _, stderr = self._terminate_process(process)
+            if process.returncode != 0:
                 raise RuntimeTurnAdapterError(
                     RuntimeFailure(
-                        code=RuntimeFailureCode.TURN_TIMEOUT,
-                        message="OpenCode turn timed out",
+                        code=RuntimeFailureCode.TURN_FAILED,
+                        message="OpenCode turn exited unsuccessfully",
                         details={
-                            "timeout_seconds": self.timeout_seconds,
+                            "returncode": process.returncode,
                             "stderr": stderr.strip(),
                         },
-                    ),
-                    timed_out=True,
-                )
-            try:
-                stdout, stderr = process.communicate(timeout=min(0.05, remaining))
-                break
-            except subprocess.TimeoutExpired:
-                continue
-
-        session_id = (
-            request.session.session_id if request.session is not None else None
-        )
-        saw_event = False
-        runtime_error = None
-        for line_number, line in enumerate(stdout.splitlines(), start=1):
-            if not line.strip():
-                continue
-            normalized = self.event_normalizer.normalize_json_line(
-                line,
-                runtime,
-                request,
-                line_number=line_number,
-            )
-            raw = normalized.raw_event
-            assert isinstance(raw, dict)
-            saw_event = True
-            event_session = normalized.session_id
-            if event_session:
-                if session_id is not None and event_session != session_id:
-                    raise self.event_normalizer.invalid_output(
-                        "OpenCode changed sessionID during one turn",
-                        raw_event=raw,
-                        line_number=line_number,
                     )
-                session_id = event_session
+                )
 
-            usage = self.event_normalizer.usage_event(
-                raw,
+            yield self._turn_event(
+                TurnEvent.TURN_SUCCEEDED,
                 runtime,
                 request,
-                line_number=line_number,
+                session_id=session_id,
             )
-            yield normalized
-            if usage is not None:
-                yield usage
-            if raw.get("type") == "error":
-                runtime_error = raw
-
-        if not saw_event or session_id is None:
-            raise self.event_normalizer.invalid_output(
-                "OpenCode turn produced no session-bound JSON events"
-            )
-        if runtime_error is not None:
-            raise RuntimeTurnAdapterError(
-                RuntimeFailure(
-                    code=RuntimeFailureCode.TURN_FAILED,
-                    message="OpenCode reported a runtime error",
-                    details=self.event_normalizer.error_details(runtime_error),
-                )
-            )
-        if process.returncode != 0:
-            raise RuntimeTurnAdapterError(
-                RuntimeFailure(
-                    code=RuntimeFailureCode.TURN_FAILED,
-                    message="OpenCode turn exited unsuccessfully",
-                    details={
-                        "returncode": process.returncode,
-                        "stderr": stderr.strip(),
-                    },
-                )
-            )
-
-        yield self._turn_event(
-            TurnEvent.TURN_SUCCEEDED,
-            runtime,
-            request,
-            session_id=session_id,
-        )
+        finally:
+            if process.poll() is None:
+                self._terminate_process(process)
 
     def _resolve_executable(self) -> str | None:
         candidate = Path(self.executable).expanduser()
@@ -424,8 +406,221 @@ class OpenCodeRuntimeAdapter:
             command.extend(("--session", request.session.session_id))
         if request.interaction.mode is InteractionPolicyMode.AUTO_APPROVE:
             command.append("--auto")
+        else:
+            command.extend(("--pure", "--agent", _DENY_AGENT))
         command.extend(("--", request.prompt))
         return command
+
+    def _turn_environment(
+        self,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+        control: RuntimeTurnControl,
+    ) -> dict[str, str]:
+        environment = os.environ.copy()
+        if request.interaction.mode is InteractionPolicyMode.AUTO_APPROVE:
+            return environment
+        environment.update(
+            {
+                "OPENCODE_DISABLE_PROJECT_CONFIG": "1",
+                "OPENCODE_DISABLE_DEFAULT_PLUGINS": "1",
+                "OPENCODE_DISABLE_EXTERNAL_SKILLS": "1",
+            }
+        )
+        raw_config = environment.get(_CONFIG_CONTENT_ENV)
+        try:
+            config = json.loads(raw_config) if raw_config else {}
+        except json.JSONDecodeError as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode inline configuration is not valid JSON",
+                )
+            ) from exc
+        if not isinstance(config, dict):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode inline configuration must be a JSON object",
+                )
+            )
+        agents = config.get("agent", {})
+        if not isinstance(agents, dict):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode inline agent configuration must be an object",
+                )
+            )
+        mcp = config.get("mcp", {})
+        if not isinstance(mcp, dict):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode inline MCP configuration must be an object",
+                )
+            )
+        disabled_mcp = dict(mcp)
+        resolved = self._resolved_config(runtime, request, environment, control)
+        resolved_mcp = resolved.get("mcp", {})
+        if not isinstance(resolved_mcp, dict):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode resolved MCP configuration was invalid",
+                )
+            )
+        for name in resolved_mcp:
+            entry = disabled_mcp.get(name, {})
+            if not isinstance(entry, dict):
+                entry = {}
+            disabled_mcp[name] = {**entry, "enabled": False}
+        config = dict(config)
+        config["mcp"] = disabled_mcp
+        config["agent"] = {
+            **agents,
+            _DENY_AGENT: {
+                "description": "Agenty deny-by-default runtime agent",
+                "mode": "primary",
+                "permission": "deny",
+            },
+        }
+        environment[_CONFIG_CONTENT_ENV] = json.dumps(
+            config,
+            allow_nan=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        self._validate_safe_config(
+            self._resolved_config(runtime, request, environment, control)
+        )
+        return environment
+
+    def _resolved_config(
+        self,
+        runtime: RuntimeIdentity,
+        request: RuntimeTurnRequest,
+        environment: dict[str, str],
+        control: RuntimeTurnControl,
+    ) -> dict[str, object]:
+        assert runtime.executable is not None
+        try:
+            process = subprocess.Popen(
+                [runtime.executable, "debug", "config", "--pure"],
+                cwd=request.working_directory,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
+            )
+        except OSError as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode safe configuration could not be resolved",
+                )
+            ) from exc
+        stdout, _ = self._wait_for_process(
+            process,
+            control,
+            timeout_seconds=min(self.timeout_seconds, 30),
+            timeout_message="OpenCode safe configuration probe timed out",
+        )
+        if process.returncode != 0:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode safe configuration was rejected",
+                )
+            )
+        try:
+            resolved = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode safe configuration was not JSON",
+                )
+            ) from exc
+        if not isinstance(resolved, dict):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode resolved configuration must be an object",
+                )
+            )
+        return resolved
+
+    @staticmethod
+    def _validate_safe_config(config: dict[str, object]) -> None:
+        agents = config.get("agent", {})
+        selected = agents.get(_DENY_AGENT) if isinstance(agents, dict) else None
+        permission = selected.get("permission") if isinstance(selected, dict) else None
+        if permission not in ("deny", {"*": "deny"}):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode deny agent was overridden by ambient configuration",
+                )
+            )
+        mcp = config.get("mcp", {})
+        if not isinstance(mcp, dict) or any(
+            not isinstance(entry, dict) or entry.get("enabled") is not False
+            for entry in mcp.values()
+        ):
+            raise RuntimeTurnAdapterError(
+                RuntimeFailure(
+                    code=RuntimeFailureCode.TURN_REJECTED,
+                    message="OpenCode MCP configuration could not be disabled",
+                )
+            )
+
+    def _wait_for_process(
+        self,
+        process: subprocess.Popen[str],
+        control: RuntimeTurnControl,
+        *,
+        timeout_seconds: float | None = None,
+        timeout_message: str = "OpenCode turn timed out",
+    ) -> tuple[str, str]:
+        timeout_seconds = timeout_seconds or self.timeout_seconds
+        deadline = time.monotonic() + timeout_seconds
+        try:
+            while True:
+                if control.cancelled:
+                    _, stderr = self._terminate_process(process)
+                    raise RuntimeTurnAdapterError(
+                        RuntimeFailure(
+                            code=RuntimeFailureCode.TURN_FAILED,
+                            message="OpenCode turn was cancelled",
+                            details={"actor": control.actor},
+                        ),
+                        cancelled=True,
+                    )
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    _, stderr = self._terminate_process(process)
+                    raise RuntimeTurnAdapterError(
+                        RuntimeFailure(
+                            code=RuntimeFailureCode.TURN_TIMEOUT,
+                            message=timeout_message,
+                            details={
+                                "timeout_seconds": timeout_seconds,
+                                "stderr": stderr.strip(),
+                            },
+                        ),
+                        timed_out=True,
+                    )
+                try:
+                    return process.communicate(timeout=min(0.05, remaining))
+                except subprocess.TimeoutExpired:
+                    continue
+        except BaseException:
+            if process.poll() is None:
+                self._terminate_process(process)
+            raise
 
     def reply_approval(self, decision: RuntimeApprovalDecision) -> None:
         raise RuntimeTurnAdapterError(

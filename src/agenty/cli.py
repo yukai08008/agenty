@@ -1,5 +1,8 @@
 """Agenty CLI entry point."""
 
+import argparse
+import json
+import math
 import platform
 import sys
 
@@ -8,10 +11,11 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 from agenty import __version__
-from agenty.config import ensure_config, get_api_key, CONFIG_FILE
+from agenty.config import CONFIG_FILE, ensure_config, get_api_key
+from agenty.run import AgentyRunError, run_opencode_task
+from agenty.runtime.protocol import TurnState
 
 console = Console()
 
@@ -51,29 +55,66 @@ def cmd_version(args):
 
 
 def cmd_run(args):
-    """Run a demo agent task."""
-    task = args.task or "greet"
-    if task == "greet":
-        console.print(Panel(
-            "Hi! I'm [bold]agenty[/bold], your demo agent.\n"
-            "Use [cyan]agenty chat[/cyan] to start an interactive session.",
-            title="Agent",
-            border_style="green",
-        ))
-    elif task == "think":
-        console.print(Panel(
-            "Thinking... Done! The answer is [bold yellow]42[/bold yellow].",
-            title="Agent",
-            border_style="green",
-        ))
-    elif task == "status":
-        table = Table(show_header=False, border_style="green")
-        table.add_column("Key", style="bold")
+    """Run one task through the version-bound OpenCode RuntimeMachine."""
+    try:
+        result = run_opencode_task(
+            " ".join(args.task),
+            working_directory=args.directory,
+            auto_approve=args.auto_approve,
+            timeout_seconds=args.timeout,
+            executable=args.opencode,
+        )
+    except AgentyRunError as exc:
+        failure = exc.failure
+        if args.json:
+            print(failure.model_dump_json())
+        else:
+            console.print(
+                Panel(
+                    f"{failure.message}\n\nCode: {failure.code.value}",
+                    title="Run Setup Failed",
+                    border_style="red",
+                )
+            )
+        return 2
+    except KeyboardInterrupt:
+        if args.json:
+            print(json.dumps({"state": "interrupted", "exit_code": 130}))
+        else:
+            console.print(
+                "\n[bold yellow]Turn interrupted; OpenCode was stopped.[/bold yellow]"
+            )
+        return 130
+
+    if args.json:
+        print(result.model_dump_json())
+    else:
+        if result.output_text:
+            console.print(Markdown(result.output_text))
+        if result.failure is not None:
+            console.print(
+                Panel(
+                    f"{result.failure.message}\n\nCode: {result.failure.code.value}",
+                    title="Turn Failed",
+                    border_style="red",
+                )
+            )
+        table = Table(show_header=False, border_style="blue")
+        table.add_column("Key", style="bold cyan")
         table.add_column("Value")
-        table.add_row("Platform", platform.system())
-        table.add_row("Status", "[bold green]Operational[/bold green]")
-        table.add_row("Uptime", "Since last install")
-        console.print(Panel(table, title="Agent Status", border_style="green"))
+        table.add_row("State", result.state.value)
+        table.add_row(
+            "Runtime",
+            f"{result.runtime.runtime_kind} {result.runtime.runtime_version}",
+        )
+        table.add_row("Session", result.session_id or "-")
+        table.add_row("Tokens", str(result.usage.total_tokens))
+        table.add_row("Cost", f"{result.usage.cost} {result.usage.currency}")
+        table.add_row("Changed files", str(len(result.artifacts.artifacts)))
+        table.add_row("Normalized log", result.event_log.normalized_path)
+        table.add_row("Raw log", result.event_log.raw_path)
+        console.print(Panel(table, title="Agenty Turn", border_style="blue"))
+    return 0 if result.state is TurnState.SUCCEEDED else 1
 
 
 def cmd_upgrade(_args):
@@ -91,6 +132,7 @@ def cmd_upgrade(_args):
         ["uv", "tool", "upgrade", "agenty"],
         capture_output=True,
         text=True,
+        check=False,
     )
 
     if result.returncode == 0:
@@ -101,13 +143,14 @@ def cmd_upgrade(_args):
                 ["agenty", "--version"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             if new_result.returncode == 0 and new_result.stdout.strip():
                 # Output: "agenty 0.2.0"
                 parts = new_result.stdout.strip().split()
                 if len(parts) >= 2:
                     new_version = parts[1]
-        except Exception:
+        except OSError:
             pass
 
         if new_version != __version__:
@@ -200,12 +243,17 @@ def cmd_chat(_args):
         ))
 
 
-def main():
-    import argparse
+def _positive_float(value):
+    parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("value must be positive and finite")
+    return parsed
 
+
+def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="agenty",
-        description="A demo agent CLI built with uv",
+        description="Run auditable agent tasks through version-bound runtimes",
     )
     parser.add_argument("--version", action="store_true", help="Show version")
     sub = parser.add_subparsers(dest="command")
@@ -215,10 +263,37 @@ def main():
     p_hello.add_argument("name", nargs="?", help="Your name")
 
     # run
-    p_run = sub.add_parser("run", help="Run a demo agent task")
-    p_run.add_argument("task", nargs="?", default="greet",
-                       choices=["greet", "think", "status"],
-                       help="Task to run (default: greet)")
+    p_run = sub.add_parser("run", help="Run a task with OpenCode 1.18.26")
+    p_run.add_argument("task", nargs="+", help="Natural-language task")
+    p_run.add_argument(
+        "-C",
+        "--directory",
+        default=".",
+        help="Working directory bound to the turn (default: current directory)",
+    )
+    p_run.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="Allow OpenCode to execute tools without an approval round trip",
+    )
+    p_run.add_argument(
+        "--timeout",
+        type=_positive_float,
+        default=300,
+        metavar="SECONDS",
+        help="Runtime timeout in seconds (default: 300)",
+    )
+    p_run.add_argument(
+        "--opencode",
+        default="opencode",
+        metavar="PATH",
+        help="OpenCode executable name or path",
+    )
+    p_run.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the complete TurnResult as JSON",
+    )
 
     # chat
     sub.add_parser("chat", help="Start an interactive chat session")
@@ -229,23 +304,29 @@ def main():
     # config
     sub.add_parser("config", help="Show or initialize configuration")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.version:
         cmd_version(args)
+        return 0
     elif args.command == "hello":
         cmd_hello(args)
+        return 0
     elif args.command == "run":
-        cmd_run(args)
+        return cmd_run(args)
     elif args.command == "chat":
         cmd_chat(args)
+        return 0
     elif args.command == "upgrade":
         cmd_upgrade(args)
+        return 0
     elif args.command == "config":
         cmd_config(args)
+        return 0
     else:
         parser.print_help()
+        return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

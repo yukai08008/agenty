@@ -1,6 +1,6 @@
 # 项目状态：Agenty
 
-> 最近更新：2026-09-07
+> 最近更新：2026-09-08
 >
 > 当前状态只记录“现在在哪里”；目标见 `ROADMAP.md`，历史见 `CHANGELOG.md`。
 
@@ -9,7 +9,7 @@
 - 接手规范：`AGENTS.md`
 - 总体目标与阶段：`ROADMAP.md`
 - 历史变更与证据：`CHANGELOG.md`
-- 当前版本三件套：`dev_plans/v0.03-v0.05/`
+- 当前版本三件套：`dev_plans/v0.05-v0.06/`
 - 架构知识入口：`vault/00-index/home.md`
 
 ## 里程碑状态
@@ -18,7 +18,7 @@
 
 目标：完成第一个由应用触发、按根级与 Agent 局部层级加载、通过独立 RuntimeMachine 执行并可审计收尾的 Agent Anna。
 
-当前判断：RuntimeMachine 六类应用职责底座已完成；AgentyMachine、层级加载、记忆/技能和 Anna 本体尚未实现。M1 仍需多个版本。
+当前判断：RuntimeMachine 六类应用职责底座已完成，并通过最小 `agenty run` 暴露给用户；AgentyMachine、层级加载、记忆/技能和 Anna 本体尚未实现。M1 仍需多个版本。
 
 ## 版本状态树
 
@@ -31,18 +31,22 @@
 - `v0.05-c` Session 与 Environment binding（CODE_COMPLETE）— `82bfa08`
 - `v0.05-d` 模型与 effort（CODE_COMPLETE）— `732df2f`
 - `v0.05-e` 交互管理（CODE_COMPLETE）— `f5f37ea`
-- `v0.05-f` 监控与结果（CODE_COMPLETE, live verified，当前未提交）
+- `v0.05-f` 监控与结果（CODE_COMPLETE, live verified）— `8586376`
+
+### v0.06 最小 Runtime 应用入口（ACTIVE）
+
+- `v0.06-a` `agenty run` 自然语言任务入口（CODE_COMPLETE, live verified）
 
 已完成版本：v0.01 Runtime 接入基线、v0.03 最小 Turn 调用链。细节见 `CHANGELOG.md`。
 
 ## 当前 Git 与验证
 
-- 当前分支：`v0.05-f`
-- 当前 HEAD：`f5f37ea`；v0.05-f 为未提交实现
+- 当前分支：`v0.06-a`
+- 父基线：`v0.05-f@8586376`；最新 HEAD 必须从 Git 读取
 - 最新 HEAD 必须从 Git 读取，不在状态文件中复制易过期的提交号
-- 自动回归：183 passed、1 个显式 live 测试默认 skipped
+- 自动回归：204 passed、1 个显式 live 测试默认 skipped
 - OpenCode：1.18.26，首个适配通道为 `transient_process`
-- v0.05-f 已通过 OpenCode 1.18.26 transient_process 真实磁盘使用检查；成功路径包含 Session、usage、事件日志和零文件变化证据，失败路径来自公共合同测试与假进程 integration
+- v0.06-a 已验证 deny 模式无 Shell 工具、显式 auto 模式真实执行只读 `df`，并验证较宽任务在 180 秒到达结构化 timeout；成功、权限限制和失败路径均有 live 证据
 
 ## 当前工作区注意事项
 
@@ -52,9 +56,9 @@
 
 ## 当前焦点
 
-1. 提交并推送用户已验收的 v0.05-f，排除用户自己的 IPython 依赖修改。
-2. 按用户确认建立 v0.06-a，提供基于现有 RuntimeMachine 的最小 `agenty run` CLI。
-3. 使用新 CLI 完成一次真实 OpenCode 体验验证，但不将其描述为完整 AgentyMachine 或 Anna。
+1. 等待用户体验 `agenty run` 的自然语言、JSON、deny/auto 和失败返回行为。
+2. 用户确认后再进入 AgentyMachine 根级基础能力，不提前实现 Anna 后续目录。
+3. 继续保留用户自己的 IPython 依赖修改，不与功能提交混合。
 
 ## 后续硬约束
 
