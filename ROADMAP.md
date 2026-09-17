@@ -110,12 +110,12 @@ v0.06 只让用户直接体验 RuntimeMachine；它不是 AgentyMachine、Anna�
 
 版本号和边界必须在上一版本验收后由用户确认，以下只固定依赖顺序：
 
-1. **根级基础能力与 AgentyMachine**：在最小 `agenty run` 入口之上加入配置、Agent identity、目标、Environment、Action/Strategy、Reward 接口。
-2. **层级加载协议**：根级约束与具体 Agent 局部约束的合并、优先级、路径安全和可观测结果。
-3. **记忆与技能**：`MEMORY.md`、共享 `memory/skills`、Agent 私有范围、读取与写回策略。
-4. **Anna 定义**：创建 `agents/anna/`，明确 Anna 的职责、记忆、技能和默认 Runtime 策略。
-5. **双状态机编排**：应用触发 AgentyMachine，使用 RuntimeMachine 完成受控执行与收尾。
-6. **M1 端到端验收**：真实 OpenCode 路径、失败恢复、审计信息、记忆写回和产物定位。
+1. **Agent Harness 基础**：建立 Agent Workspace、Identity、AGENTS、权限边界、运行记录和分层写回合同。
+2. **层级上下文解析**：实现根级 → 公共 agents → Agent → 项目/任务的递归加载、深合并、Skill 覆盖和 `context_manifest`。
+3. **任务与 AgentyMachine**：加入 Task Registry、`TASK.md`、Goal、Environment、Action/Strategy、Reward 和 Agent 状态机。
+4. **记忆与技能**：实现 `MEMORY.json`/`memory/`、共享/私有 Skill、用户上下文及读取/写回策略。
+5. **Anna 与双状态机编排**：创建 `agents/anna/`，由 AgentyMachine 触发 RuntimeMachine 完成受控执行与收尾。
+6. **M1 端到端验收**：真实 OpenCode 路径、分级唤起、审批/失败恢复、审计信息、结果和记忆写回正确层级。
 
 ## 7. 当前差距
 

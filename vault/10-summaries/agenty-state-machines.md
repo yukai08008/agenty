@@ -8,6 +8,8 @@ related:
   - "[[dual-machine-boundary]]"
   - "[[runtime-state-event-baseline]]"
   - "[[execution-branch-context]]"
+  - "[[agent-harness-architecture]]"
+  - "[[agent-harness-datanodes]]"
 ---
 
 # Agenty State Machines
@@ -38,6 +40,8 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 - v0.01-b 已实现带版本、Channel、支持状态、证据和约束的 CapabilityRecord，以及由标准事件驱动的 AvailabilityMachine。对齐 andybot：状态枚举使用 Enum，跨边界和可持久化状态数据使用 Pydantic v2，Machine 保持普通 Python 对象。
 - 执行分支必须同时绑定 Runtime Session lineage 与项目 Environment；Env、Action/Strategy、Reward 是后续设计的一等概念，原生 Session fork 不能单独承担该语义。
 - 顶层和底层采用交替设计，在 Anna 完整执行链路处交汇。
+- 新增 Agent Harness 设计：完整 Workspace、递归 Context Resolver、Task Registry、分级唤起、manifest、deliver 授权门和分层写回；当前为 `PROPOSED`，尚未进入实现版本。
+- 已完成 Harness DataNode 第一轮抽象：区分 AgentIdentity/AgentGoal/AgentOutcome/MemoryFact 业务节点与 TaskDefinition/ContextManifest/AgentExecution/RuntimeTurn/AuthorizationDecision 运行节点；FSM 和持久化暂不展开。
 
 ## Details
 
@@ -48,3 +52,5 @@ AgentyMachine 和 RuntimeMachine 是两个独立状态机。前者管理 Agent �
 - [[runtime-turn-contract]]
 - [[opencode-live-smoke-2026-09-06]]
 - [[runtime-application-contract]]
+- [[agent-harness-architecture]]
+- [[agent-harness-datanodes]]

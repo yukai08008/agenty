@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "agent_id": "anna",
+  "notification": {"mode": "event_only"},
+  "runtime": {"preferred": "opencode", "auto_approve": false}
+}

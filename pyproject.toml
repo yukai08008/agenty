@@ -12,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "ipython>=8.39.0",
     "pytest>=8.0.0",
 ]
 

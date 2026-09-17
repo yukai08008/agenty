@@ -1,0 +1,3 @@
+- Agent ID: `demo`
+- Name: `Demo Agent`
+- Role: `test harness`

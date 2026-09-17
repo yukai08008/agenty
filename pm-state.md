@@ -1,6 +1,6 @@
 # 项目状态：Agenty
 
-> 最近更新：2026-09-08
+> 最近更新：2026-09-12
 >
 > 当前状态只记录“现在在哪里”；目标见 `ROADMAP.md`，历史见 `CHANGELOG.md`。
 
@@ -56,8 +56,9 @@
 
 ## 当前焦点
 
-1. 等待用户体验 `agenty run` 的自然语言、JSON、deny/auto 和失败返回行为。
-2. 用户确认后再进入 AgentyMachine 根级基础能力，不提前实现 Anna 后续目录。
+1. Agent Harness 第一阶段已完成：Workspace 上下文模型、递归 Resolver、Manifest、权限收紧校验、Demo fixture 和离线测试均已落地。
+2. Task Registry、AgentyMachine、Runtime 编排、结果/记忆写回和 Anna workspace/Registry 已落地，并通过端到端离线验收。
+3. Harness DataNode 第一轮抽象已完成；下一步需先确认 AgentOutcome/MemoryFact/AgentExecution 的最小字段，再进入 FSM 和持久化。
 3. 继续保留用户自己的 IPython 依赖修改，不与功能提交混合。
 
 ## 后续硬约束

@@ -17,6 +17,8 @@ Start here. Follow the generated catalog into summaries, then open details and r
 ## Navigation
 
 - [[agenty-state-machines]] — 当前架构、里程碑和 RuntimeMachine 进展
+- [[agent-harness-architecture]] — Agent Workspace、上下文解析和执行控制面设计
+- [[agent-harness-datanodes]] — Harness 业务类/运行类 DataNode 抽象与边界
 - [[00-index/generated-catalog|Generated catalog]]
 - `10-summaries/` — current state
 - `20-details/` — procedures, decisions, and incidents

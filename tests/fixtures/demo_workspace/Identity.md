@@ -1,0 +1,2 @@
+- Agent ID: `workspace`
+- Name: `Demo Workspace`
