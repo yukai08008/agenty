@@ -60,6 +60,7 @@
 | OpenCode 1.18.26 Adapter | `src/agenty/runtime/opencode.py` |
 | OpenCode 事件与模型目录 | `src/agenty/runtime/opencode_events.py`, `opencode_models.py` |
 | RuntimeMachine 六类职责 | `docs/runtime-machine-application-contract.md` |
+- **遇事必建卡（2026-09-28 andy 立，agent-team 规范 10）**：处理中遇到的问题按 开发类/修复类/辅助类 三分类建卡，建卡一律走 `quick-agent-issue`；无额外指认一律建中央库 agent_issues（项目名只是执行位置，不是卡位置），不就近建本地实例。
 
 ## 5. 开发与质量门
 
