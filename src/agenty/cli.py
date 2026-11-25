@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import uuid
 from pathlib import Path
 
@@ -241,6 +242,9 @@ def cmd_doctor(args: argparse.Namespace) -> None:
                 errors.extend(inspection.errors)
                 if inspection.agent_id and inspection.agent_id != agent.agent_id:
                     errors.append("Suite agent_id does not match control-plane identity")
+                from agenty.rooms import inspect_rooms
+
+                errors.extend(inspect_rooms(root))
         if state["execution"]["runtime_pid"] is not None:
             errors.append("Runtime PID is recorded; live-process verification is not implemented")
 
@@ -324,6 +328,108 @@ def build_parser() -> argparse.ArgumentParser:
     migrate.add_argument("target", type=Path)
     migrate.add_argument("--init-git", action="store_true")
     migrate.set_defaults(func=cmd_migrate)
+
+    rooms_parser = sub.add_parser(
+        "rooms",
+        help="Manage the inner-rooms declaration (agent-suite/rooms.json)",
+    )
+    rooms_sub = rooms_parser.add_subparsers(dest="rooms_command", required=True)
+
+    def _rooms_target(args: argparse.Namespace) -> "Path":
+        if getattr(args, "root", None) is not None:
+            return Path(args.root).expanduser().resolve()
+        store = make_store(args)
+        agent = store.resolve_agent(args.agent)
+        root = agent.bindings.get("active_root")
+        if not isinstance(root, str):
+            raise SystemExit(f"Agent {args.agent} has no active workspace root")
+        return Path(root).expanduser().resolve()
+
+    def cmd_rooms_init(args: argparse.Namespace) -> None:
+        from agenty.rooms import RoomsError, build_inner_graph, rooms_path, validate_room_graph, write_rooms
+
+        target = _rooms_target(args)
+        path = rooms_path(target)
+        if path.exists():
+            raise SystemExit(f"rooms declaration already exists: {path}")
+        graph = build_inner_graph()
+        errors = validate_room_graph(graph)
+        if errors:
+            raise SystemExit("template invalid: " + "; ".join(errors))
+        try:
+            write_rooms(target, graph)
+        except RoomsError as exc:
+            raise SystemExit(str(exc))
+        payload = {"rooms_json": str(path), "rooms": len(graph["rooms"])}
+        if args.json:
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            console.print(Panel(str(path), title=f"rooms.json written ({len(graph['rooms'])} inner rooms)", border_style="green"))
+
+    def cmd_rooms_list(args: argparse.Namespace) -> None:
+        import json as _json
+
+        from agenty.rooms import RoomsError, read_rooms
+
+        target = _rooms_target(args)
+        try:
+            graph = read_rooms(target)
+        except RoomsError as exc:
+            raise SystemExit(str(exc))
+        if args.json:
+            print(_json.dumps(graph, ensure_ascii=False))
+            return
+        for room in graph.get("rooms", []):
+            console.print(
+                f"- [cyan]{room.get('room_id')}[/cyan] {room.get('title')} "
+                f"(scope={room.get('scope')}, kind={room.get('kind')}, "
+                f"places={len(room.get('places', []))}, handles={len(room.get('handles', []))}, "
+                f"probes={len(room.get('probes', []))})"
+            )
+
+    def cmd_rooms_verify(args: argparse.Namespace) -> None:
+        import json as _json
+
+        from agenty.rooms import verify_rooms
+
+        target = _rooms_target(args)
+        errors, probes = verify_rooms(target)
+        stale = [p for p in probes if p.get("stale")]
+        payload = {
+            "errors": errors,
+            "probes": probes,
+            "stale_count": len(stale),
+        }
+        if args.json:
+            print(_json.dumps(payload, ensure_ascii=False))
+        else:
+            if errors:
+                console.print(Panel("\n".join(errors), title="Rooms verify failed", border_style="red"))
+            for probe in probes:
+                state = "stale" if probe.get("stale") else "ok"
+                console.print(f"- {probe.get('probe_id')}: [{state}] {probe.get('detail')}")
+        if errors:
+            raise SystemExit(1)
+        if stale:
+            raise SystemExit(6)
+
+    rooms_init = rooms_sub.add_parser("init", help="Write the standard inner-rooms skeleton")
+    rooms_init.add_argument("--agent", help="Agent whose active workspace is targeted")
+    rooms_init.add_argument("--root", type=Path, help="Explicit workspace root (overrides --agent)")
+    rooms_init.add_argument("--json", action="store_true")
+    rooms_init.set_defaults(func=cmd_rooms_init)
+
+    rooms_list = rooms_sub.add_parser("list", help="List rooms declared in rooms.json")
+    rooms_list.add_argument("--agent", help="Agent whose active workspace is targeted")
+    rooms_list.add_argument("--root", type=Path, help="Explicit workspace root (overrides --agent)")
+    rooms_list.add_argument("--json", action="store_true")
+    rooms_list.set_defaults(func=cmd_rooms_list)
+
+    rooms_verify = rooms_sub.add_parser("verify", help="Validate declarations and run read-only probes")
+    rooms_verify.add_argument("--agent", help="Agent whose active workspace is targeted")
+    rooms_verify.add_argument("--root", type=Path, help="Explicit workspace root (overrides --agent)")
+    rooms_verify.add_argument("--json", action="store_true")
+    rooms_verify.set_defaults(func=cmd_rooms_verify)
 
     doctor = sub.add_parser("doctor", help="Validate the control plane or one Agent")
     doctor.add_argument("agent", nargs="?")

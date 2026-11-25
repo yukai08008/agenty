@@ -15,6 +15,8 @@ def create_worker(
     store: AgentyStore,
     selector: str,
     path: Path | str | None = None,
+    *,
+    with_rooms: bool = True,
 ) -> AgentRecord:
     agent = store.resolve_agent(selector)
     machine = AgentStateMachine(agent.directory)
@@ -35,6 +37,10 @@ def create_worker(
     _require_empty_target(root)
     root.mkdir(parents=True, exist_ok=True)
     create_suite(root, agent.agent_id, agent.name)
+    if with_rooms:
+        from agenty.rooms import build_inner_graph, write_rooms
+
+        write_rooms(root, build_inner_graph())
     append_event(
         root,
         "workspace.created",
@@ -135,6 +141,27 @@ def migrate_worker(
         inspection = inspect_suite(destination)
         if not inspection.valid:
             raise AgentyError("Migrated suite is invalid: " + "; ".join(inspection.errors))
+        from agenty.rooms import inspect_rooms
+
+        rooms_errors = inspect_rooms(destination)
+        if rooms_errors:
+            raise AgentyError(
+                "Migrated rooms declaration is invalid: " + "; ".join(rooms_errors)
+            )
+        from agenty.rooms import inspect_rooms
+
+        rooms_errors = inspect_rooms(destination)
+        if rooms_errors:
+            raise AgentyError(
+                "Migrated rooms declaration is invalid: " + "; ".join(rooms_errors)
+            )
+        from agenty.rooms import inspect_rooms
+
+        rooms_errors = inspect_rooms(destination)
+        if rooms_errors:
+            raise AgentyError(
+                "Migrated rooms declaration is invalid: " + "; ".join(rooms_errors)
+            )
 
         updated = store.update_bindings(
             agent,
